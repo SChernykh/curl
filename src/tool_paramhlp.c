@@ -34,6 +34,7 @@
 #include "tool_getpass.h"
 #include "tool_msgs.h"
 #include "tool_paramhlp.h"
+#include "tool_libinfo.h"
 #include "tool_version.h"
 #include "dynbuf.h"
 
@@ -114,21 +115,6 @@ ParameterError file2memory(char **bufp, size_t *size, FILE *file)
     *bufp = NULL;
   }
   return PARAM_OK;
-}
-
-void cleanarg(char *str)
-{
-#ifdef HAVE_WRITABLE_ARGV
-  /* now that GetStr has copied the contents of nextarg, wipe the next
-   * argument out so that the username:password isn't displayed in the
-   * system process list */
-  if(str) {
-    size_t len = strlen(str);
-    memset(str, ' ', len);
-  }
-#else
-  (void)str;
-#endif
 }
 
 /*
@@ -275,8 +261,8 @@ ParameterError str2udouble(double *valp, const char *str, long max)
 }
 
 /*
- * Parse the string and modify the long in the given address. Return
- * non-zero on failure, zero on success.
+ * Parse the string and provide an allocated libcurl compatible protocol
+ * string output. Return non-zero on failure, zero on success.
  *
  * The string is a list of protocols
  *
@@ -285,48 +271,26 @@ ParameterError str2udouble(double *valp, const char *str, long max)
  * data.
  */
 
-long proto2num(struct OperationConfig *config, long *val, const char *str)
+#define MAX_PROTOSTRING (64*11) /* Enough room for 64 10-chars proto names. */
+
+ParameterError proto2num(struct OperationConfig *config,
+                         proto_set_t val, char **ostr, const char *str)
 {
   char *buffer;
   const char *sep = ",";
   char *token;
+  struct curlx_dynbuf obuf;
+  proto_t proto;
+  CURLcode result;
 
-  static struct sprotos {
-    const char *name;
-    long bit;
-  } const protos[] = {
-    { "all", CURLPROTO_ALL },
-    { "http", CURLPROTO_HTTP },
-    { "https", CURLPROTO_HTTPS },
-    { "ftp", CURLPROTO_FTP },
-    { "ftps", CURLPROTO_FTPS },
-    { "scp", CURLPROTO_SCP },
-    { "sftp", CURLPROTO_SFTP },
-    { "telnet", CURLPROTO_TELNET },
-    { "ldap", CURLPROTO_LDAP },
-    { "ldaps", CURLPROTO_LDAPS },
-    { "dict", CURLPROTO_DICT },
-    { "file", CURLPROTO_FILE },
-    { "tftp", CURLPROTO_TFTP },
-    { "imap", CURLPROTO_IMAP },
-    { "imaps", CURLPROTO_IMAPS },
-    { "pop3", CURLPROTO_POP3 },
-    { "pop3s", CURLPROTO_POP3S },
-    { "smtp", CURLPROTO_SMTP },
-    { "smtps", CURLPROTO_SMTPS },
-    { "rtsp", CURLPROTO_RTSP },
-    { "gopher", CURLPROTO_GOPHER },
-    { "smb", CURLPROTO_SMB },
-    { "smbs", CURLPROTO_SMBS },
-    { NULL, 0 }
-  };
+  curlx_dyn_init(&obuf, MAX_PROTOSTRING);
 
   if(!str)
-    return 1;
+    return PARAM_OPTION_AMBIGUOUS;
 
   buffer = strdup(str); /* because strtok corrupts it */
   if(!buffer)
-    return 1;
+    return PARAM_NO_MEM;
 
   /* Allow strtok() here since this isn't used threaded */
   /* !checksrc! disable BANNEDFUNC 2 */
@@ -334,8 +298,6 @@ long proto2num(struct OperationConfig *config, long *val, const char *str)
       token;
       token = strtok(NULL, sep)) {
     enum e_action { allow, deny, set } action = allow;
-
-    struct sprotos const *pp;
 
     /* Process token modifiers */
     while(!ISALNUM(*token)) { /* may be NULL if token is all modifiers */
@@ -351,37 +313,58 @@ long proto2num(struct OperationConfig *config, long *val, const char *str)
         break;
       default: /* Includes case of terminating NULL */
         Curl_safefree(buffer);
-        return 1;
+        return PARAM_BAD_USE;
       }
     }
 
-    for(pp = protos; pp->name; pp++) {
-      if(curl_strequal(token, pp->name)) {
-        switch(action) {
-        case deny:
-          *val &= ~(pp->bit);
-          break;
-        case allow:
-          *val |= pp->bit;
-          break;
-        case set:
-          *val = pp->bit;
-          break;
-        }
+    if(curl_strequal(token, "all")) {
+      switch(action) {
+      case deny:
+        val = 0;
+        break;
+      case allow:
+      case set:
+        val = PROTO_ALL;
         break;
       }
     }
-
-    if(!(pp->name)) { /* unknown protocol */
-      /* If they have specified only this protocol, we say treat it as
-         if no protocols are allowed */
-      if(action == set)
-        *val = 0;
-      warnf(config->global, "unrecognized protocol '%s'\n", token);
+    else {
+      proto = scheme2protocol(token);
+      if(proto != PROTO_NONE) {
+        switch(action) {
+        case deny:
+          val &= ~PROTO_BIT(proto);
+          break;
+        case set:
+          val = 0;
+          /* FALLTHROUGH */
+        case allow:
+          if(proto >= PROTO_MAX)
+            warnf(config->global, "protocol '%s' enabled but not accessible\n",
+                  token);
+          val |= PROTO_BIT(proto);
+          break;
+        }
+      }
+      else { /* unknown protocol */
+        /* If they have specified only this protocol, we say treat it as
+           if no protocols are allowed */
+        if(action == set)
+          val = 0;
+        warnf(config->global, "unrecognized protocol '%s'\n", token);
+      }
     }
   }
   Curl_safefree(buffer);
-  return 0;
+
+  result = curlx_dyn_addn(&obuf, "", 0);
+  for(proto = 0; proto < proto_last && proto < PROTO_MAX && !result; proto++)
+    if(val & PROTO_BIT(proto))
+      result = curlx_dyn_addf(&obuf, "%s,", protocol2scheme(proto));
+  curlx_dyn_setlen(&obuf, curlx_dyn_len(&obuf) - 1);
+  *ostr = curlx_dyn_ptr(&obuf);
+
+  return *ostr ? PARAM_OK : PARAM_NO_MEM;
 }
 
 /**
@@ -392,16 +375,16 @@ long proto2num(struct OperationConfig *config, long *val, const char *str)
  * @return PARAM_LIBCURL_UNSUPPORTED_PROTOCOL  protocol not supported
  * @return PARAM_REQUIRES_PARAMETER   missing parameter
  */
-int check_protocol(const char *str)
+ParameterError check_protocol(const char *str)
 {
-  const char * const *pp;
-  const curl_version_info_data *curlinfo = curl_version_info(CURLVERSION_NOW);
+  proto_t proto;
+
   if(!str)
     return PARAM_REQUIRES_PARAMETER;
-  for(pp = curlinfo->protocols; *pp; pp++) {
-    if(curl_strequal(*pp, str))
-      return PARAM_OK;
-  }
+
+  proto = scheme2protocol(str);
+  if(proto < proto_last)
+    return PARAM_OK;
   return PARAM_LIBCURL_UNSUPPORTED_PROTOCOL;
 }
 

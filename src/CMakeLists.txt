@@ -47,9 +47,7 @@ if(USE_MANUAL)
 else()
   add_custom_command(
     OUTPUT tool_hugehelp.c
-    COMMAND ${CMAKE_COMMAND} -E echo "/* built-in manual is disabled, blank function */" > tool_hugehelp.c
-    COMMAND ${CMAKE_COMMAND} -E echo "#include \"tool_hugehelp.h\"" >> tool_hugehelp.c
-    COMMAND ${CMAKE_COMMAND} -E echo "void hugehelp(void) {}" >> tool_hugehelp.c
+    COMMAND ${CMAKE_COMMAND} -E echo "#include \"tool_hugehelp.h\"" > tool_hugehelp.c
     DEPENDS
       "${CMAKE_CURRENT_SOURCE_DIR}/tool_hugehelp.h"
     VERBATIM)
@@ -111,6 +109,6 @@ target_link_libraries(${EXE_NAME} libcurl ${CURL_LIBS})
 
 install(TARGETS ${EXE_NAME} EXPORT ${TARGETS_EXPORT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 export(TARGETS ${EXE_NAME}
-       APPEND FILE ${PROJECT_BINARY_DIR}/curl-target.cmake
+       FILE ${PROJECT_BINARY_DIR}/curl-target.cmake
        NAMESPACE ${PROJECT_NAME}::
 )

@@ -24,6 +24,7 @@
  *
  ***************************************************************************/
 #include "tool_setup.h"
+#include "tool_libinfo.h"
 
 struct getout *new_getout(struct OperationConfig *config);
 
@@ -31,17 +32,17 @@ ParameterError file2string(char **bufp, FILE *file);
 
 ParameterError file2memory(char **bufp, size_t *size, FILE *file);
 
-void cleanarg(char *str);
-
 ParameterError str2num(long *val, const char *str);
 ParameterError str2unum(long *val, const char *str);
 ParameterError oct2nummax(long *val, const char *str, long max);
 ParameterError str2unummax(long *val, const char *str, long max);
 ParameterError str2udouble(double *val, const char *str, long max);
 
-long proto2num(struct OperationConfig *config, long *val, const char *str);
+ParameterError proto2num(struct OperationConfig *config,
+                         proto_set_t val, char **obuf,
+                         const char *str);
 
-int check_protocol(const char *str);
+ParameterError check_protocol(const char *str);
 
 ParameterError str2offset(curl_off_t *val, const char *str);
 

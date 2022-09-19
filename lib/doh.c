@@ -243,6 +243,7 @@ static CURLcode dohprobe(struct Curl_easy *data,
        the gcc typecheck helpers */
     struct dynbuf *resp = &p->serverdoh;
     ERROR_CHECK_SETOPT(CURLOPT_URL, url);
+    ERROR_CHECK_SETOPT(CURLOPT_DEFAULT_PROTOCOL, "https");
     ERROR_CHECK_SETOPT(CURLOPT_WRITEFUNCTION, doh_write_cb);
     ERROR_CHECK_SETOPT(CURLOPT_WRITEDATA, resp);
     ERROR_CHECK_SETOPT(CURLOPT_POSTFIELDS, p->dohbuffer);
@@ -791,7 +792,7 @@ doh2ai(const struct dohentry *de, const char *hostname, int port)
 #endif
   CURLcode result = CURLE_OK;
   int i;
-  size_t hostlen = strlen(hostname) + 1; /* include zero terminator */
+  size_t hostlen = strlen(hostname) + 1; /* include null-terminator */
 
   if(!de)
     /* no input == no output! */

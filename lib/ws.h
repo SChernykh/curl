@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_DOTDOT_H
-#define HEADER_CURL_DOTDOT_H
+#ifndef HEADER_CURL_WS_H
+#define HEADER_CURL_WS_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -23,5 +23,28 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-char *Curl_dedotdotify(const char *input);
-#endif /* HEADER_CURL_DOTDOT_H */
+#include "curl_setup.h"
+
+#ifdef USE_WEBSOCKETS
+
+#ifdef USE_HYPER
+#define REQTYPE void
+#else
+#define REQTYPE struct dynbuf
+#endif
+
+/* this is the largest single fragment size we support */
+#define MAX_WS_SIZE 65535
+
+CURLcode Curl_ws_request(struct Curl_easy *data, REQTYPE *req);
+CURLcode Curl_ws_accept(struct Curl_easy *data);
+
+size_t Curl_ws_writecb(char *buffer, size_t size, size_t nitems, void *userp);
+void Curl_ws_done(struct Curl_easy *data);
+
+#else
+#define Curl_ws_request(x,y) CURLE_OK
+#define Curl_ws_done(x) Curl_nop_stmt
+#endif
+
+#endif /* HEADER_CURL_WS_H */

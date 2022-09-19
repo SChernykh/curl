@@ -60,7 +60,7 @@ static int checkparts(CURLU *u, const char *in, const char *wanted,
     {CURLUPART_PATH, "path"},
     {CURLUPART_QUERY, "query"},
     {CURLUPART_FRAGMENT, "fragment"},
-    {0, NULL}
+    {CURLUPART_URL, NULL}
   };
   memset(buf, 0, sizeof(buf));
 
@@ -138,6 +138,17 @@ struct clearurlcase {
 };
 
 static const struct testcase get_parts_list[] ={
+#ifdef USE_WEBSOCKETS
+  {"ws://example.com/color/?green",
+   "ws | [11] | [12] | [13] | example.com | [15] | /color/ | green |"
+   " [17]",
+   CURLU_DEFAULT_SCHEME, 0, CURLUE_OK },
+  {"wss://example.com/color/?green",
+   "wss | [11] | [12] | [13] | example.com | [15] | /color/ | green |"
+   " [17]",
+   CURLU_DEFAULT_SCHEME, 0, CURLUE_OK },
+#endif
+
   {"https://user:password@example.net/get?this=and#but frag then", "",
    CURLU_DEFAULT_SCHEME, 0, CURLUE_BAD_FRAGMENT},
   {"https://user:password@example.net/get?this=and what", "",
@@ -237,7 +248,7 @@ static const struct testcase get_parts_list[] ={
    CURLU_DEFAULT_SCHEME, 0, CURLUE_NO_HOST},
   {"boing:80",
    "https | [11] | [12] | [13] | boing | 80 | / | [16] | [17]",
-   CURLU_DEFAULT_SCHEME, 0, CURLUE_OK},
+   CURLU_DEFAULT_SCHEME|CURLU_GUESS_SCHEME, 0, CURLUE_OK},
   {"http://[fd00:a41::50]:8080",
    "http | [11] | [12] | [13] | [fd00:a41::50] | 8080 | / | [16] | [17]",
    CURLU_DEFAULT_SCHEME, 0, CURLUE_OK},
@@ -382,6 +393,15 @@ static const struct testcase get_parts_list[] ={
 };
 
 static const struct urltestcase get_url_list[] = {
+  /* unsupported schemes with no guessing enabled */
+  {"data:text/html;charset=utf-8;base64,PCFET0NUWVBFIEhUTUw+PG1ldGEgY",
+   "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
+  {"d:anything-really", "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
+  {"about:config", "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
+  {"example://foo", "", 0, 0, CURLUE_UNSUPPORTED_SCHEME},
+  {"mailto:infobot@example.com?body=send%20current-issue", "", 0, 0,
+   CURLUE_UNSUPPORTED_SCHEME},
+  {"about:80", "https://about:80/", CURLU_DEFAULT_SCHEME, 0, CURLUE_OK},
   /* percent encoded host names */
   {"http://example.com%40127.0.0.1/", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"http://example.com%21127.0.0.1/", "", 0, 0, CURLUE_BAD_HOSTNAME},
@@ -558,7 +578,7 @@ static const struct urltestcase get_url_list[] = {
   {"custom-scheme://host?expected=test-still-good",
    "custom-scheme://host/?expected=test-still-good",
    CURLU_NON_SUPPORT_SCHEME | CURLU_NO_AUTHORITY, 0, CURLUE_OK},
-  {NULL, NULL, 0, 0, 0}
+  {NULL, NULL, 0, 0, CURLUE_OK}
 };
 
 static int checkurl(const char *url, const char *out)
@@ -722,7 +742,7 @@ static const struct setcase set_parts_list[] = {
    CURLU_NON_SUPPORT_SCHEME, CURLU_NON_SUPPORT_SCHEME | CURLU_NO_AUTHORITY,
    CURLUE_OK, CURLUE_OK},
 
-  {NULL, NULL, NULL, 0, 0, 0, 0}
+  {NULL, NULL, NULL, 0, 0, CURLUE_OK, CURLUE_OK}
 };
 
 static CURLUPart part2id(char *part)
@@ -800,32 +820,32 @@ static const struct redircase set_url_list[] = {
   {"http://example.org/static/favicon/wikipedia.ico",
    "//fake.example.com/licenses/by-sa/3.0/",
    "http://fake.example.com/licenses/by-sa/3.0/",
-   0, 0, 0},
+   0, 0, CURLUE_OK},
   {"https://example.org/static/favicon/wikipedia.ico",
    "//fake.example.com/licenses/by-sa/3.0/",
    "https://fake.example.com/licenses/by-sa/3.0/",
-   0, 0, 0},
+   0, 0, CURLUE_OK},
   {"file://localhost/path?query#frag",
    "foo#another",
    "file:///foo#another",
-   0, 0, 0},
+   0, 0, CURLUE_OK},
   {"http://example.com/path?query#frag",
    "https://two.example.com/bradnew",
    "https://two.example.com/bradnew",
-   0, 0, 0},
+   0, 0, CURLUE_OK},
   {"http://example.com/path?query#frag",
    "../../newpage#foo",
    "http://example.com/newpage#foo",
-   0, 0, 0},
+   0, 0, CURLUE_OK},
   {"http://user:foo@example.com/path?query#frag",
    "../../newpage",
    "http://user:foo@example.com/newpage",
-   0, 0, 0},
+   0, 0, CURLUE_OK},
   {"http://user:foo@example.com/path?query#frag",
    "../newpage",
    "http://user:foo@example.com/newpage",
-   0, 0, 0},
-  {NULL, NULL, NULL, 0, 0, 0}
+   0, 0, CURLUE_OK},
+  {NULL, NULL, NULL, 0, 0, CURLUE_OK}
 };
 
 static int set_url(void)
@@ -1012,7 +1032,7 @@ static const struct querycase append_list[] = {
    0, 0, CURLUE_OK},
   {"HTTP://test/?size=2#f", "name=joe", "http://test/?size=2&name=joe#f",
    0, 0, CURLUE_OK},
-  {NULL, NULL, NULL, 0, 0, 0}
+  {NULL, NULL, NULL, 0, 0, CURLUE_OK}
 };
 
 static int append(void)
@@ -1253,7 +1273,7 @@ static const struct clearurlcase clear_url_list[] ={
   {CURLUPART_PATH, "/hello", "/", CURLUE_OK},
   {CURLUPART_QUERY, "a=b", NULL, CURLUE_NO_QUERY},
   {CURLUPART_FRAGMENT, "anchor", NULL, CURLUE_NO_FRAGMENT},
-  {0, NULL, NULL, CURLUE_OK},
+  {CURLUPART_URL, NULL, NULL, CURLUE_OK},
 };
 
 static int clear_url(void)

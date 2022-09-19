@@ -77,7 +77,7 @@ stages:
           name: torture
           install: libnghttp2-dev
           configure: --enable-debug --disable-shared --disable-threaded-resolver --with-openssl
-          tests: -n -t --shallow=40 !FTP
+          tests: -n -t --shallow=25 !FTP
     steps:
     - script: sudo apt-get update && sudo apt-get install -y stunnel4 python3-impacket libzstd-dev libbrotli-dev $(install)
       displayName: 'apt install'
@@ -95,7 +95,7 @@ stages:
       displayName: 'test'
       env:
         AZURE_ACCESS_TOKEN: "$(System.AccessToken)"
-        TFLAGS: "-r $(tests)"
+        TFLAGS: "-ac /usr/bin/curl -r $(tests)"
 
 - stage: distcheck
   dependsOn: []
@@ -294,4 +294,4 @@ stages:
       displayName: 'test'
       env:
         AZURE_ACCESS_TOKEN: "$(System.AccessToken)"
-        TFLAGS: "!IDN !SCP ~612 ~1056 $(tests)"
+        TFLAGS: "-ac /usr/bin/curl.exe !IDN !SCP ~612 ~1056 $(tests)"

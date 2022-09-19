@@ -145,35 +145,6 @@ const struct NameValue setopt_nv_CURL_NETRC[] = {
   NVEND,
 };
 
-/* These mappings essentially triplicated - see
- * tool_libinfo.c and tool_paramhlp.c */
-const struct NameValue setopt_nv_CURLPROTO[] = {
-  NV(CURLPROTO_ALL),            /* combination */
-  NV(CURLPROTO_DICT),
-  NV(CURLPROTO_FILE),
-  NV(CURLPROTO_FTP),
-  NV(CURLPROTO_FTPS),
-  NV(CURLPROTO_GOPHER),
-  NV(CURLPROTO_HTTP),
-  NV(CURLPROTO_HTTPS),
-  NV(CURLPROTO_IMAP),
-  NV(CURLPROTO_IMAPS),
-  NV(CURLPROTO_LDAP),
-  NV(CURLPROTO_LDAPS),
-  NV(CURLPROTO_POP3),
-  NV(CURLPROTO_POP3S),
-  NV(CURLPROTO_RTSP),
-  NV(CURLPROTO_SCP),
-  NV(CURLPROTO_SFTP),
-  NV(CURLPROTO_SMB),
-  NV(CURLPROTO_SMBS),
-  NV(CURLPROTO_SMTP),
-  NV(CURLPROTO_SMTPS),
-  NV(CURLPROTO_TELNET),
-  NV(CURLPROTO_TFTP),
-  NVEND,
-};
-
 /* These options have non-zero default values. */
 static const struct NameValue setopt_nv_CURLNONZERODEFAULTS[] = {
   NV1(CURLOPT_SSL_VERIFYPEER, 1),
@@ -223,7 +194,7 @@ static const struct NameValue setopt_nv_CURLNONZERODEFAULTS[] = {
 
 #define REM0(s) ADD((&easysrc_toohard, s))
 #define REM1(f,a) ADDF((&easysrc_toohard, f,a))
-#define REM2(f,a,b) ADDF((&easysrc_toohard, f,a,b))
+#define REM3(f,a,b,c) ADDF((&easysrc_toohard, f,a,b,c))
 
 /* Escape string to C string syntax.  Return NULL if out of memory.
  * Is this correct for those wacky EBCDIC guys? */
@@ -281,7 +252,7 @@ static char *c_escape(const char *str, curl_off_t len)
       strcpy(e, "\\?");
       e += 2;
     }
-    else if(!isprint(c)) {
+    else if(!ISPRINT(c)) {
       msnprintf(e, 5, "\\x%02x", (unsigned)c);
       e += 4;
     }
@@ -668,7 +639,7 @@ CURLcode tool_setopt(CURL *curl, bool str, struct GlobalConfig *global,
     /* function pointers are never printable */
     if(tag >= CURLOPTTYPE_FUNCTIONPOINT) {
       if(pval) {
-        value = "functionpointer";
+        value = "function pointer";
         remark = TRUE;
       }
       else
@@ -680,7 +651,7 @@ CURLcode tool_setopt(CURL *curl, bool str, struct GlobalConfig *global,
       escape = TRUE;
     }
     else if(pval) {
-      value = "objectpointer";
+      value = "object pointer";
       remark = TRUE;
     }
     else
@@ -706,7 +677,7 @@ CURLcode tool_setopt(CURL *curl, bool str, struct GlobalConfig *global,
 
     /* blobs are never printable */
     if(pblob) {
-      value = "blobpointer";
+      value = "blob pointer";
       remark = TRUE;
     }
     else
@@ -721,7 +692,7 @@ CURLcode tool_setopt(CURL *curl, bool str, struct GlobalConfig *global,
     /* we only use this for real if --libcurl was used */
 
     if(remark)
-      REM2("%s set to a %s", name, value);
+      REM3("%s was set to a%s %s", name, (*value == 'o' ? "n" : ""), value);
     else {
       if(escape) {
         curl_off_t len = ZERO_TERMINATED;

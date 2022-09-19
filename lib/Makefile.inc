@@ -110,7 +110,6 @@ LIB_CFILES =         \
   content_encoding.c \
   cookie.c           \
   curl_addrinfo.c    \
-  curl_ctype.c       \
   curl_des.c         \
   curl_endian.c      \
   curl_fnmatch.c     \
@@ -129,7 +128,6 @@ LIB_CFILES =         \
   curl_threads.c     \
   dict.c             \
   doh.c              \
-  dotdot.c           \
   dynbuf.c           \
   easy.c             \
   easygetopt.c       \
@@ -218,7 +216,8 @@ LIB_CFILES =         \
   version.c          \
   version_win32.c    \
   warnless.c         \
-  wildcard.c
+  wildcard.c         \
+  ws.c
 
 LIB_HFILES =         \
   altsvc.h           \
@@ -263,7 +262,6 @@ LIB_HFILES =         \
   curlx.h            \
   dict.h             \
   doh.h              \
-  dotdot.h           \
   dynbuf.h           \
   easy_lock.h        \
   easyif.h           \
@@ -341,7 +339,8 @@ LIB_HFILES =         \
   urldata.h          \
   version_win32.h    \
   warnless.h         \
-  wildcard.h
+  wildcard.h         \
+  ws.h
 
 LIB_RCFILES = libcurl.rc
 

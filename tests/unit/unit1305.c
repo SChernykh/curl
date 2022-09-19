@@ -54,7 +54,7 @@ static CURLcode unit_setup(void)
     return CURLE_OUT_OF_MEMORY;
   }
 
-  Curl_init_dnscache(&hp);
+  Curl_init_dnscache(&hp, 7);
   return CURLE_OK;
 }
 
@@ -75,7 +75,7 @@ static struct Curl_addrinfo *fake_ai(void)
 {
   static struct Curl_addrinfo *ai;
   static const char dummy[]="dummy";
-  size_t namelen = sizeof(dummy); /* including the zero terminator */
+  size_t namelen = sizeof(dummy); /* including the null-terminator */
 
   ai = calloc(1, sizeof(struct Curl_addrinfo) + sizeof(struct sockaddr_in) +
               namelen);

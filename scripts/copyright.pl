@@ -39,9 +39,7 @@ my %skiplist = (
     # License texts
     "LICENSES/BSD-3-Clause.txt" => "<built-in>",
     "LICENSES/BSD-4-Clause-UC.txt" => "<built-in>",
-    "LICENSES/GPL-3.0-or-later.txt" => "<built-in>",
     "LICENSES/ISC.txt" => "<built-in>",
-    "LICENSES/LicenseRef-OpenEvidence.txt" => "<built-in>",
     "LICENSES/curl.txt" => "<built-in>",
     "COPYING" => "<built-in>",
 
