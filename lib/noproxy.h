@@ -1,3 +1,5 @@
+#ifndef HEADER_CURL_NOPROXY_H
+#define HEADER_CURL_NOPROXY_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -21,36 +23,22 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "curlcheck.h"
+#include "curl_setup.h"
 
-#include "strcase.h"
+#ifndef CURL_DISABLE_PROXY
 
-static CURLcode unit_setup(void) {return CURLE_OK;}
-static void unit_stop(void) {}
+#ifdef DEBUGBUILD
 
-UNITTEST_START
+UNITTEST bool Curl_cidr4_match(const char *ipv4,    /* 1.2.3.4 address */
+                               const char *network, /* 1.2.3.4 address */
+                               unsigned int bits);
+UNITTEST bool Curl_cidr6_match(const char *ipv6,
+                               const char *network,
+                               unsigned int bits);
+#endif
 
-int rc;
+bool Curl_check_noproxy(const char *name, const char *no_proxy);
 
-rc = curl_strequal("iii", "III");
-fail_unless(rc != 0, "return code should be non-zero");
+#endif
 
-rc = curl_strequal("iiia", "III");
-fail_unless(rc == 0, "return code should be zero");
-
-rc = curl_strequal("iii", "IIIa");
-fail_unless(rc == 0, "return code should be zero");
-
-rc = curl_strequal("iiiA", "IIIa");
-fail_unless(rc != 0, "return code should be non-zero");
-
-rc = curl_strnequal("iii", "III", 3);
-fail_unless(rc != 0, "return code should be non-zero");
-
-rc = curl_strnequal("iiiABC", "IIIcba", 3);
-fail_unless(rc != 0, "return code should be non-zero");
-
-rc = curl_strnequal("ii", "II", 3);
-fail_unless(rc != 0, "return code should be non-zero");
-
-UNITTEST_STOP
+#endif /* HEADER_CURL_NOPROXY_H */

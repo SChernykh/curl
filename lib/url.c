@@ -73,8 +73,8 @@
 #endif
 
 #elif defined(USE_WIN32_IDN)
-/* prototype for curl_win32_idn_to_ascii() */
-bool curl_win32_idn_to_ascii(const char *in, char **out);
+/* prototype for Curl_win32_idn_to_ascii() */
+bool Curl_win32_idn_to_ascii(const char *in, char **out);
 #endif  /* USE_LIBIDN2 */
 
 #include "doh.h"
@@ -106,6 +106,7 @@ bool curl_win32_idn_to_ascii(const char *in, char **out);
 #include "urlapi-int.h"
 #include "system_win32.h"
 #include "hsts.h"
+#include "noproxy.h"
 
 /* And now for the protocols */
 #include "ftp.h"
@@ -577,11 +578,7 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 
   set->new_file_perms = 0644;    /* Default permissions */
   set->new_directory_perms = 0755; /* Default permissions */
-
-  /* for the *protocols fields we don't use the CURLPROTO_ALL convenience
-     define since we internally only use the lower 16 bits for the passed
-     in bitmask to not conflict with the private bits */
-  set->allowed_protocols = (unsigned int)CURLPROTO_ALL;
+  set->allowed_protocols = (curl_prot_t) CURLPROTO_ALL;
   set->redir_protocols = CURLPROTO_HTTP | CURLPROTO_HTTPS | CURLPROTO_FTP |
                          CURLPROTO_FTPS;
 
@@ -754,15 +751,6 @@ static void conn_shutdown(struct Curl_easy *data, struct connectdata *conn)
   DEBUGASSERT(data);
   infof(data, "Closing connection %ld", conn->connection_id);
 
-#ifndef USE_HYPER
-  if(conn->connect_state && conn->connect_state->prot_save) {
-    /* If this was closed with a CONNECT in progress, cleanup this temporary
-       struct arrangement */
-    data->req.p.http = NULL;
-    Curl_safefree(conn->connect_state->prot_save);
-  }
-#endif
-
   /* possible left-overs from the async name resolvers */
   Curl_resolver_cancel(data);
 
@@ -926,7 +914,7 @@ static int IsMultiplexingPossible(const struct Curl_easy *handle,
 {
   int avail = 0;
 
-  /* If a HTTP protocol and multiplexing is enabled */
+  /* If an HTTP protocol and multiplexing is enabled */
   if((conn->handler->protocol & PROTO_FAMILY_HTTP) &&
      (!conn->bits.protoconnstart || !conn->bits.close)) {
 
@@ -945,7 +933,7 @@ proxy_info_matches(const struct proxy_info *data,
 {
   if((data->proxytype == needle->proxytype) &&
      (data->port == needle->port) &&
-     Curl_safe_strcasecompare(data->host.name, needle->host.name))
+     strcasecompare(data->host.name, needle->host.name))
     return TRUE;
 
   return FALSE;
@@ -961,21 +949,11 @@ socks_proxy_info_matches(const struct proxy_info *data,
   /* the user information is case-sensitive
      or at least it is not defined as case-insensitive
      see https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1 */
-  if(!data->user != !needle->user)
-    return FALSE;
+
   /* curl_strequal does a case insensitive comparison,
      so do not use it here! */
-  if(data->user &&
-     needle->user &&
-     strcmp(data->user, needle->user) != 0)
-    return FALSE;
-  if(!data->passwd != !needle->passwd)
-    return FALSE;
-  /* curl_strequal does a case insensitive comparison,
-     so do not use it here! */
-  if(data->passwd &&
-     needle->passwd &&
-     strcmp(data->passwd, needle->passwd) != 0)
+  if(Curl_timestrcmp(data->user, needle->user) ||
+     Curl_timestrcmp(data->passwd, needle->passwd))
     return FALSE;
   return TRUE;
 }
@@ -1219,7 +1197,7 @@ ConnectionExists(struct Curl_easy *data,
       size_t multiplexed = 0;
 
       /*
-       * Note that if we use a HTTP proxy in normal mode (no tunneling), we
+       * Note that if we use an HTTP proxy in normal mode (no tunneling), we
        * check connections to that proxy and not to the actual remote server.
        */
       check = curr->ptr;
@@ -1377,10 +1355,10 @@ ConnectionExists(struct Curl_easy *data,
       if(!(needle->handler->flags & PROTOPT_CREDSPERREQUEST)) {
         /* This protocol requires credentials per connection,
            so verify that we're using the same name and password as well */
-        if(strcmp(needle->user, check->user) ||
-           strcmp(needle->passwd, check->passwd) ||
-           !Curl_safecmp(needle->sasl_authzid, check->sasl_authzid) ||
-           !Curl_safecmp(needle->oauth_bearer, check->oauth_bearer)) {
+        if(Curl_timestrcmp(needle->user, check->user) ||
+           Curl_timestrcmp(needle->passwd, check->passwd) ||
+           Curl_timestrcmp(needle->sasl_authzid, check->sasl_authzid) ||
+           Curl_timestrcmp(needle->oauth_bearer, check->oauth_bearer)) {
           /* one of them was different */
           continue;
         }
@@ -1403,9 +1381,9 @@ ConnectionExists(struct Curl_easy *data,
          || !needle->bits.httpproxy || needle->bits.tunnel_proxy
 #endif
         ) {
-        /* The requested connection does not use a HTTP proxy or it uses SSL or
-           it is a non-SSL protocol tunneled or it is a non-SSL protocol which
-           is allowed to be upgraded via TLS */
+        /* The requested connection does not use an HTTP proxy or it uses SSL
+           or it is a non-SSL protocol tunneled or it is a non-SSL protocol
+           which is allowed to be upgraded via TLS */
 
         if((strcasecompare(needle->handler->scheme, check->handler->scheme) ||
             (get_protocol_family(check->handler) ==
@@ -1456,8 +1434,8 @@ ConnectionExists(struct Curl_easy *data,
            possible. (Especially we must not reuse the same connection if
            partway through a handshake!) */
         if(wantNTLMhttp) {
-          if(strcmp(needle->user, check->user) ||
-             strcmp(needle->passwd, check->passwd)) {
+          if(Curl_timestrcmp(needle->user, check->user) ||
+             Curl_timestrcmp(needle->passwd, check->passwd)) {
 
             /* we prefer a credential match, but this is at least a connection
                that can be reused and "upgraded" to NTLM */
@@ -1479,8 +1457,10 @@ ConnectionExists(struct Curl_easy *data,
           if(!check->http_proxy.user || !check->http_proxy.passwd)
             continue;
 
-          if(strcmp(needle->http_proxy.user, check->http_proxy.user) ||
-             strcmp(needle->http_proxy.passwd, check->http_proxy.passwd))
+          if(Curl_timestrcmp(needle->http_proxy.user,
+                             check->http_proxy.user) ||
+             Curl_timestrcmp(needle->http_proxy.passwd,
+                             check->http_proxy.passwd))
             continue;
         }
         else if(check->proxy_ntlm_state != NTLMSTATE_NONE) {
@@ -1652,7 +1632,7 @@ CURLcode Curl_idnconvert_hostname(struct Curl_easy *data,
 #elif defined(USE_WIN32_IDN)
     char *ace_hostname = NULL;
 
-    if(curl_win32_idn_to_ascii(host->name, &ace_hostname)) {
+    if(Curl_win32_idn_to_ascii(host->name, &ace_hostname)) {
       host->encalloc = ace_hostname;
       /* change the name pointer to point to the encoded hostname */
       host->name = host->encalloc;
@@ -1683,7 +1663,7 @@ void Curl_free_idnconverted_hostname(struct hostname *host)
   }
 #elif defined(USE_WIN32_IDN)
   free(host->encalloc); /* must be freed with free() since this was
-                           allocated by curl_win32_idn_to_ascii */
+                           allocated by Curl_win32_idn_to_ascii */
   host->encalloc = NULL;
 #else
   (void)host;
@@ -2047,10 +2027,56 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
     failf(data, "Too long host name (maximum is %d)", MAX_URL_LEN);
     return CURLE_URL_MALFORMAT;
   }
+  hostname = data->state.up.hostname;
+
+  if(hostname && hostname[0] == '[') {
+    /* This looks like an IPv6 address literal. See if there is an address
+       scope. */
+    size_t hlen;
+    conn->bits.ipv6_ip = TRUE;
+    /* cut off the brackets! */
+    hostname++;
+    hlen = strlen(hostname);
+    hostname[hlen - 1] = 0;
+
+    zonefrom_url(uh, data, conn);
+  }
+
+  /* make sure the connect struct gets its own copy of the host name */
+  conn->host.rawalloc = strdup(hostname ? hostname : "");
+  if(!conn->host.rawalloc)
+    return CURLE_OUT_OF_MEMORY;
+  conn->host.name = conn->host.rawalloc;
+
+  /*************************************************************
+   * IDN-convert the hostnames
+   *************************************************************/
+  result = Curl_idnconvert_hostname(data, &conn->host);
+  if(result)
+    return result;
+  if(conn->bits.conn_to_host) {
+    result = Curl_idnconvert_hostname(data, &conn->conn_to_host);
+    if(result)
+      return result;
+  }
+#ifndef CURL_DISABLE_PROXY
+  if(conn->bits.httpproxy) {
+    result = Curl_idnconvert_hostname(data, &conn->http_proxy.host);
+    if(result)
+      return result;
+  }
+  if(conn->bits.socksproxy) {
+    result = Curl_idnconvert_hostname(data, &conn->socks_proxy.host);
+    if(result)
+      return result;
+  }
+#endif
 
 #ifndef CURL_DISABLE_HSTS
+  /* HSTS upgrade */
   if(data->hsts && strcasecompare("http", data->state.up.scheme)) {
-    if(Curl_hsts(data->hsts, data->state.up.hostname, TRUE)) {
+    /* This MUST use the IDN decoded name */
+    if(Curl_hsts(data->hsts, conn->host.name, TRUE)) {
       char *url;
       Curl_safefree(data->state.up.scheme);
       uc = curl_url_set(uh, CURLUPART_SCHEME, "https", 0);
@@ -2101,7 +2127,7 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
       return Curl_uc_to_curlcode(uc);
   }
 
-  if(!data->state.aptr.user) {
+  if(!data->set.str[STRING_USERNAME]) {
     /* we don't use the URL API's URL decoder option here since it rejects
        control codes and we want to allow them for some schemes in the user
        and password fields */
@@ -2155,26 +2181,6 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
   }
 
   (void)curl_url_get(uh, CURLUPART_QUERY, &data->state.up.query, 0);
-
-  hostname = data->state.up.hostname;
-  if(hostname && hostname[0] == '[') {
-    /* This looks like an IPv6 address literal. See if there is an address
-       scope. */
-    size_t hlen;
-    conn->bits.ipv6_ip = TRUE;
-    /* cut off the brackets! */
-    hostname++;
-    hlen = strlen(hostname);
-    hostname[hlen - 1] = 0;
-
-    zonefrom_url(uh, data, conn);
-  }
-
-  /* make sure the connect struct gets its own copy of the host name */
-  conn->host.rawalloc = strdup(hostname ? hostname : "");
-  if(!conn->host.rawalloc)
-    return CURLE_OUT_OF_MEMORY;
-  conn->host.name = conn->host.rawalloc;
 
 #ifdef ENABLE_IPV6
   if(data->set.scope_id)
@@ -2273,83 +2279,6 @@ void Curl_free_request_state(struct Curl_easy *data)
 
 
 #ifndef CURL_DISABLE_PROXY
-/****************************************************************
-* Checks if the host is in the noproxy list. returns true if it matches
-* and therefore the proxy should NOT be used.
-****************************************************************/
-static bool check_noproxy(const char *name, const char *no_proxy)
-{
-  /* no_proxy=domain1.dom,host.domain2.dom
-   *   (a comma-separated list of hosts which should
-   *   not be proxied, or an asterisk to override
-   *   all proxy variables)
-   */
-  if(no_proxy && no_proxy[0]) {
-    size_t tok_start;
-    size_t tok_end;
-    const char *separator = ", ";
-    size_t no_proxy_len;
-    size_t namelen;
-    char *endptr;
-    if(strcasecompare("*", no_proxy)) {
-      return TRUE;
-    }
-
-    /* NO_PROXY was specified and it wasn't just an asterisk */
-
-    no_proxy_len = strlen(no_proxy);
-    if(name[0] == '[') {
-      /* IPv6 numerical address */
-      endptr = strchr(name, ']');
-      if(!endptr)
-        return FALSE;
-      name++;
-      namelen = endptr - name;
-    }
-    else
-      namelen = strlen(name);
-
-    for(tok_start = 0; tok_start < no_proxy_len; tok_start = tok_end + 1) {
-      while(tok_start < no_proxy_len &&
-            strchr(separator, no_proxy[tok_start]) != NULL) {
-        /* Look for the beginning of the token. */
-        ++tok_start;
-      }
-
-      if(tok_start == no_proxy_len)
-        break; /* It was all trailing separator chars, no more tokens. */
-
-      for(tok_end = tok_start; tok_end < no_proxy_len &&
-            strchr(separator, no_proxy[tok_end]) == NULL; ++tok_end)
-        /* Look for the end of the token. */
-        ;
-
-      /* To match previous behavior, where it was necessary to specify
-       * ".local.com" to prevent matching "notlocal.com", we will leave
-       * the '.' off.
-       */
-      if(no_proxy[tok_start] == '.')
-        ++tok_start;
-
-      if((tok_end - tok_start) <= namelen) {
-        /* Match the last part of the name to the domain we are checking. */
-        const char *checkn = name + namelen - (tok_end - tok_start);
-        if(strncasecompare(no_proxy + tok_start, checkn,
-                           tok_end - tok_start)) {
-          if((tok_end - tok_start) == namelen || *(checkn - 1) == '.') {
-            /* We either have an exact match, or the previous character is a .
-             * so it is within the same domain, so no proxy for this host.
-             */
-            return TRUE;
-          }
-        }
-      } /* if((tok_end - tok_start) <= namelen) */
-    } /* for(tok_start = 0; tok_start < no_proxy_len;
-         tok_start = tok_end + 1) */
-  } /* NO_PROXY was specified and it wasn't just an asterisk */
-
-  return FALSE;
-}
 
 #ifndef CURL_DISABLE_HTTP
 /****************************************************************
@@ -2520,7 +2449,7 @@ static CURLcode parse_proxy(struct Curl_easy *data,
     proxytype == CURLPROXY_SOCKS4;
 
   proxyinfo = sockstype ? &conn->socks_proxy : &conn->http_proxy;
-  proxyinfo->proxytype = proxytype;
+  proxyinfo->proxytype = (unsigned char)proxytype;
 
   /* Is there a username and password given in this proxy url? */
   uc = curl_url_get(uhp, CURLUPART_USER, &proxyuser, CURLU_URLDECODE);
@@ -2718,8 +2647,8 @@ static CURLcode create_conn_helper_init_proxy(struct Curl_easy *data,
     }
   }
 
-  if(check_noproxy(conn->host.name, data->set.str[STRING_NOPROXY] ?
-      data->set.str[STRING_NOPROXY] : no_proxy)) {
+  if(Curl_check_noproxy(conn->host.name, data->set.str[STRING_NOPROXY] ?
+                        data->set.str[STRING_NOPROXY] : no_proxy)) {
     Curl_safefree(proxy);
     Curl_safefree(socksproxy);
   }
@@ -2775,7 +2704,7 @@ static CURLcode create_conn_helper_init_proxy(struct Curl_easy *data,
 
     if(conn->http_proxy.host.rawalloc) {
 #ifdef CURL_DISABLE_HTTP
-      /* asking for a HTTP proxy is a bit funny when HTTP is disabled... */
+      /* asking for an HTTP proxy is a bit funny when HTTP is disabled... */
       result = CURLE_UNSUPPORTED_PROTOCOL;
       goto out;
 #else
@@ -2792,7 +2721,7 @@ static CURLcode create_conn_helper_init_proxy(struct Curl_easy *data,
 #endif
     }
     else {
-      conn->bits.httpproxy = FALSE; /* not a HTTP proxy */
+      conn->bits.httpproxy = FALSE; /* not an HTTP proxy */
       conn->bits.tunnel_proxy = FALSE; /* no tunneling if not HTTP */
     }
 
@@ -2916,15 +2845,15 @@ CURLcode Curl_parse_login_details(const char *login, const size_t len,
           (psep && psep > osep ? (size_t)(psep - osep) :
                                  (size_t)(login + len - osep)) - 1 : 0);
 
-  /* Allocate the user portion buffer */
-  if(userp && ulen) {
+  /* Allocate the user portion buffer, which can be zero length */
+  if(userp) {
     ubuf = malloc(ulen + 1);
     if(!ubuf)
       result = CURLE_OUT_OF_MEMORY;
   }
 
   /* Allocate the password portion buffer */
-  if(!result && passwdp && plen) {
+  if(!result && passwdp && psep) {
     pbuf = malloc(plen + 1);
     if(!pbuf) {
       free(ubuf);
@@ -3009,14 +2938,6 @@ static CURLcode override_login(struct Curl_easy *data,
   char **passwdp = &conn->passwd;
   char **optionsp = &conn->options;
 
-#ifndef CURL_DISABLE_NETRC
-  if(data->set.use_netrc == CURL_NETRC_REQUIRED && data->state.aptr.user) {
-    Curl_safefree(*userp);
-    Curl_safefree(*passwdp);
-    Curl_safefree(data->state.aptr.user); /* disable user+password */
-  }
-#endif
-
   if(data->set.str[STRING_OPTIONS]) {
     free(*optionsp);
     *optionsp = strdup(data->set.str[STRING_OPTIONS]);
@@ -3025,22 +2946,23 @@ static CURLcode override_login(struct Curl_easy *data,
   }
 
 #ifndef CURL_DISABLE_NETRC
+  if(data->set.use_netrc == CURL_NETRC_REQUIRED) {
+    Curl_safefree(*userp);
+    Curl_safefree(*passwdp);
+  }
   conn->bits.netrc = FALSE;
   if(data->set.use_netrc && !data->set.str[STRING_USERNAME]) {
-    bool netrc_user_changed = FALSE;
-    bool netrc_passwd_changed = FALSE;
     int ret;
     bool url_provided = FALSE;
 
-    if(data->state.up.user) {
-      /* there was a user name in the URL */
-      userp = &data->state.up.user;
+    if(data->state.aptr.user) {
+      /* there was a user name in the URL. Use the URL decoded version */
+      userp = &data->state.aptr.user;
       url_provided = TRUE;
     }
 
     ret = Curl_parsenetrc(conn->host.name,
                           userp, passwdp,
-                          &netrc_user_changed, &netrc_passwd_changed,
                           data->set.str[STRING_NETRC_FILE]);
     if(ret > 0) {
       infof(data, "Couldn't find host %s in the %s file; using defaults",
@@ -3073,9 +2995,13 @@ static CURLcode override_login(struct Curl_easy *data,
 
   /* for updated strings, we update them in the URL */
   if(*userp) {
-    CURLcode result = Curl_setstropt(&data->state.aptr.user, *userp);
-    if(result)
-      return result;
+    CURLcode result;
+    if(data->state.aptr.user != *userp) {
+      /* nothing to do then */
+      result = Curl_setstropt(&data->state.aptr.user, *userp);
+      if(result)
+        return result;
+    }
   }
   if(data->state.aptr.user) {
     uc = curl_url_set(data->state.uh, CURLUPART_USER, data->state.aptr.user,
@@ -3507,9 +3433,9 @@ static CURLcode resolve_proxy(struct Curl_easy *data,
 }
 #endif
 
-static CURLcode resolve_ip(struct Curl_easy *data,
-                           struct connectdata *conn,
-                           bool *async)
+static CURLcode resolve_host(struct Curl_easy *data,
+                             struct connectdata *conn,
+                             bool *async)
 {
   struct Curl_dns_entry *hostaddr = NULL;
   struct hostname *connhost;
@@ -3575,7 +3501,7 @@ static CURLcode resolve_fresh(struct Curl_easy *data,
     return resolve_proxy(data, conn, async);
 #endif
 
-  return resolve_ip(data, conn, async);
+  return resolve_host(data, conn, async);
 }
 
 /*************************************************************
@@ -3804,29 +3730,6 @@ static CURLcode create_conn(struct Curl_easy *data,
   if(result)
     goto out;
 
-  /*************************************************************
-   * IDN-convert the hostnames
-   *************************************************************/
-  result = Curl_idnconvert_hostname(data, &conn->host);
-  if(result)
-    goto out;
-  if(conn->bits.conn_to_host) {
-    result = Curl_idnconvert_hostname(data, &conn->conn_to_host);
-    if(result)
-      goto out;
-  }
-#ifndef CURL_DISABLE_PROXY
-  if(conn->bits.httpproxy) {
-    result = Curl_idnconvert_hostname(data, &conn->http_proxy.host);
-    if(result)
-      goto out;
-  }
-  if(conn->bits.socksproxy) {
-    result = Curl_idnconvert_hostname(data, &conn->socks_proxy.host);
-    if(result)
-      goto out;
-  }
-#endif
 
   /*************************************************************
    * Check whether the host and the "connect to host" are equal.
@@ -4004,7 +3907,7 @@ static CURLcode create_conn(struct Curl_easy *data,
 
   /* reuse_fresh is TRUE if we are told to use a new connection by force, but
      we only acknowledge this option if this is not a re-used connection
-     already (which happens due to follow-location or during a HTTP
+     already (which happens due to follow-location or during an HTTP
      authentication phase). CONNECT_ONLY transfers also refuse reuse. */
   if((data->set.reuse_fresh && !data->state.this_is_a_follow) ||
      data->set.connect_only)

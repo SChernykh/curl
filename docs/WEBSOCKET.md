@@ -17,7 +17,7 @@ WebSocket with libcurl can be done two ways.
    of it).
 
 2. Set `CURLOPT_CONNECT_ONLY` to 2L (new for WebSocket), which makes libcurl
-   do a HTTP GET + `Upgrade:` request plus response in the
+   do an HTTP GET + `Upgrade:` request plus response in the
    `curl_easy_perform()` call before it returns and then you can use
    `curl_ws_recv()` and `curl_ws_send()` to receive and send WebSocket frames
    from and to the server.
@@ -96,14 +96,14 @@ Ideas:
 
 [libWebSocket](https://libWebSocket.org/) is said to be a solid, fast and
 efficient WebSocket library with a vast amount of users. My plan was
-originally to build upon it to skip having to implement the lowlevel parts of
+originally to build upon it to skip having to implement the low level parts of
 WebSocket myself.
 
 Here are the reasons why I have decided to move forward with WebSocket in
 curl **without using libWebSocket**:
 
-- doxygen generated docs only makes them very hard to navigate. No tutorial,
-  no clearly written explanatory pages for specific functions.
+- doxygen generated docs only makes them hard to navigate. No tutorial, no
+  clearly written explanatory pages for specific functions.
 
 - seems (too) tightly integrated with a specific TLS library, while we want to
   support WebSocket with whatever TLS library libcurl was already made to

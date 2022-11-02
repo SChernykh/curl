@@ -122,7 +122,6 @@
 #include <sys/sysctl.h>
 #endif /* CURL_BUILD_MAC */
 
-#include "urldata.h"
 #include "sendf.h"
 #include "inet_pton.h"
 #include "connect.h"
@@ -836,7 +835,6 @@ static OSStatus SocketRead(SSLConnectionRef connection,
   size_t bytesToGo = *dataLength;
   size_t initLen = bytesToGo;
   UInt8 *currData = (UInt8 *)data;
-  /*int sock = *(int *)connection;*/
   struct ssl_connect_data *connssl = (struct ssl_connect_data *)connection;
   struct ssl_backend_data *backend = connssl->backend;
   int sock;
@@ -899,7 +897,6 @@ static OSStatus SocketWrite(SSLConnectionRef connection,
                             size_t *dataLength)  /* IN/OUT */
 {
   size_t bytesSent = 0;
-  /*int sock = *(int *)connection;*/
   struct ssl_connect_data *connssl = (struct ssl_connect_data *)connection;
   struct ssl_backend_data *backend = connssl->backend;
   int sock;

@@ -80,7 +80,7 @@ static int quiche_getsock(struct Curl_easy *data,
 
   socks[0] = conn->sock[FIRSTSOCKET];
 
-  /* in a HTTP/2 connection we can basically always get a frame so we should
+  /* in an HTTP/2 connection we can basically always get a frame so we should
      always be ready for one */
   bitmap |= GETSOCK_READSOCK(FIRSTSOCKET);
 
@@ -416,6 +416,10 @@ static CURLcode quiche_has_connected(struct Curl_easy *data,
     qs->cfg = NULL;
     qs->conn = NULL;
   }
+  if(data->set.ssl.certinfo)
+    /* asked to gather certificate info */
+    (void)Curl_ossl_certchain(data, qs->ssl);
+
   return CURLE_OK;
   fail:
   quiche_h3_config_free(qs->h3config);

@@ -35,6 +35,7 @@
 #include "tool_msgs.h"
 #include "tool_paramhlp.h"
 #include "tool_libinfo.h"
+#include "tool_util.h"
 #include "tool_version.h"
 #include "dynbuf.h"
 
@@ -67,6 +68,7 @@ struct getout *new_getout(struct OperationConfig *config)
 ParameterError file2string(char **bufp, FILE *file)
 {
   struct curlx_dynbuf dyn;
+  DEBUGASSERT(MAX_FILE2STRING < INT_MAX); /* needs to fit in an int later */
   curlx_dyn_init(&dyn, MAX_FILE2STRING);
   if(file) {
     char buffer[256];
@@ -93,6 +95,8 @@ ParameterError file2memory(char **bufp, size_t *size, FILE *file)
   if(file) {
     size_t nread;
     struct curlx_dynbuf dyn;
+    /* The size needs to fit in an int later */
+    DEBUGASSERT(MAX_FILE2MEMORY < INT_MAX);
     curlx_dyn_init(&dyn, MAX_FILE2MEMORY);
     do {
       char buffer[4096];
@@ -214,7 +218,7 @@ ParameterError str2unummax(long *val, const char *str, long max)
  * data.
  */
 
-static ParameterError str2double(double *val, const char *str, long max)
+static ParameterError str2double(double *val, const char *str, double max)
 {
   if(str) {
     char *endptr;
@@ -236,8 +240,9 @@ static ParameterError str2double(double *val, const char *str, long max)
 }
 
 /*
- * Parse the string and write the double in the given address. Return PARAM_OK
- * on success, otherwise a parameter error enum. ONLY ACCEPTS POSITIVE NUMBERS!
+ * Parse the string as seconds with decimals, and write the number of
+ * milliseconds that corresponds in the given address. Return PARAM_OK on
+ * success, otherwise a parameter error enum. ONLY ACCEPTS POSITIVE NUMBERS!
  *
  * The 'max' argument is the maximum value allowed, as the numbers are often
  * multiplied when later used.
@@ -247,17 +252,64 @@ static ParameterError str2double(double *val, const char *str, long max)
  * data.
  */
 
-ParameterError str2udouble(double *valp, const char *str, long max)
+ParameterError secs2ms(long *valp, const char *str)
 {
   double value;
-  ParameterError result = str2double(&value, str, max);
+  ParameterError result = str2double(&value, str, (double)LONG_MAX/1000);
   if(result != PARAM_OK)
     return result;
   if(value < 0)
     return PARAM_NEGATIVE_NUMERIC;
 
-  *valp = value;
+  *valp = (long)(value*1000);
   return PARAM_OK;
+}
+
+/*
+ * Implement protocol sets in null-terminated array of protocol name pointers.
+ */
+
+/* Return index of prototype token in set, card(set) if not found.
+   Can be called with proto == NULL to get card(set). */
+static size_t protoset_index(const char * const *protoset, const char *proto)
+{
+  const char * const *p = protoset;
+
+  DEBUGASSERT(proto == proto_token(proto));     /* Ensure it is tokenized. */
+
+  for(; *p; p++)
+    if(proto == *p)
+      break;
+  return p - protoset;
+}
+
+/* Include protocol token in set. */
+static void protoset_set(const char **protoset, const char *proto)
+{
+  if(proto) {
+    size_t n = protoset_index(protoset, proto);
+
+    if(!protoset[n]) {
+      DEBUGASSERT(n < proto_count);
+      protoset[n] = proto;
+      protoset[n + 1] = NULL;
+    }
+  }
+}
+
+/* Exclude protocol token from set. */
+static void protoset_clear(const char **protoset, const char *proto)
+{
+  if(proto) {
+    size_t n = protoset_index(protoset, proto);
+
+    if(protoset[n]) {
+      size_t m = protoset_index(protoset, NULL) - 1;
+
+      protoset[n] = protoset[m];
+      protoset[m] = NULL;
+    }
+  }
 }
 
 /*
@@ -274,13 +326,14 @@ ParameterError str2udouble(double *valp, const char *str, long max)
 #define MAX_PROTOSTRING (64*11) /* Enough room for 64 10-chars proto names. */
 
 ParameterError proto2num(struct OperationConfig *config,
-                         proto_set_t val, char **ostr, const char *str)
+                         const char * const *val, char **ostr, const char *str)
 {
   char *buffer;
   const char *sep = ",";
   char *token;
+  const char **protoset;
   struct curlx_dynbuf obuf;
-  proto_t proto;
+  size_t proto;
   CURLcode result;
 
   curlx_dyn_init(&obuf, MAX_PROTOSTRING);
@@ -291,6 +344,21 @@ ParameterError proto2num(struct OperationConfig *config,
   buffer = strdup(str); /* because strtok corrupts it */
   if(!buffer)
     return PARAM_NO_MEM;
+
+  protoset = malloc((proto_count + 1) * sizeof(*protoset));
+  if(!protoset) {
+    free(buffer);
+    return PARAM_NO_MEM;
+  }
+
+  /* Preset protocol set with default values. */
+  protoset[0] = NULL;
+  for(; *val; val++) {
+    const char *p = proto_token(*val);
+
+    if(p)
+      protoset_set(protoset, p);
+  }
 
   /* Allow strtok() here since this isn't used threaded */
   /* !checksrc! disable BANNEDFUNC 2 */
@@ -312,7 +380,8 @@ ParameterError proto2num(struct OperationConfig *config,
         action = allow;
         break;
       default: /* Includes case of terminating NULL */
-        Curl_safefree(buffer);
+        free(buffer);
+        free((char *) protoset);
         return PARAM_BAD_USE;
       }
     }
@@ -320,47 +389,49 @@ ParameterError proto2num(struct OperationConfig *config,
     if(curl_strequal(token, "all")) {
       switch(action) {
       case deny:
-        val = 0;
+        protoset[0] = NULL;
         break;
       case allow:
       case set:
-        val = PROTO_ALL;
+        memcpy((char *) protoset,
+               built_in_protos, (proto_count + 1) * sizeof(*protoset));
         break;
       }
     }
     else {
-      proto = scheme2protocol(token);
-      if(proto != PROTO_NONE) {
+      const char *p = proto_token(token);
+
+      if(p)
         switch(action) {
         case deny:
-          val &= ~PROTO_BIT(proto);
+          protoset_clear(protoset, p);
           break;
         case set:
-          val = 0;
+          protoset[0] = NULL;
           /* FALLTHROUGH */
         case allow:
-          if(proto >= PROTO_MAX)
-            warnf(config->global, "protocol '%s' enabled but not accessible\n",
-                  token);
-          val |= PROTO_BIT(proto);
+          protoset_set(protoset, p);
           break;
         }
-      }
       else { /* unknown protocol */
         /* If they have specified only this protocol, we say treat it as
            if no protocols are allowed */
         if(action == set)
-          val = 0;
+          protoset[0] = NULL;
         warnf(config->global, "unrecognized protocol '%s'\n", token);
       }
     }
   }
-  Curl_safefree(buffer);
+  free(buffer);
+
+  /* We need the protocols in alphabetic order for CI tests requirements. */
+  qsort((char *) protoset, protoset_index(protoset, NULL), sizeof(*protoset),
+        struplocompare4sort);
 
   result = curlx_dyn_addn(&obuf, "", 0);
-  for(proto = 0; proto < proto_last && proto < PROTO_MAX && !result; proto++)
-    if(val & PROTO_BIT(proto))
-      result = curlx_dyn_addf(&obuf, "%s,", protocol2scheme(proto));
+  for(proto = 0; protoset[proto] && !result; proto++)
+    result = curlx_dyn_addf(&obuf, "%s,", protoset[proto]);
+  free((char *) protoset);
   curlx_dyn_setlen(&obuf, curlx_dyn_len(&obuf) - 1);
   *ostr = curlx_dyn_ptr(&obuf);
 
@@ -377,13 +448,10 @@ ParameterError proto2num(struct OperationConfig *config,
  */
 ParameterError check_protocol(const char *str)
 {
-  proto_t proto;
-
   if(!str)
     return PARAM_REQUIRES_PARAMETER;
 
-  proto = scheme2protocol(str);
-  if(proto < proto_last)
+  if(proto_token(str))
     return PARAM_OK;
   return PARAM_LIBCURL_UNSUPPORTED_PROTOCOL;
 }

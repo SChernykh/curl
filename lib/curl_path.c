@@ -122,7 +122,8 @@ CURLcode Curl_get_pathname(const char **cpp, char **path, char *homedir)
   bool relativePath = false;
   static const char WHITESPACE[] = " \t\r\n";
 
-  if(!*cp) {
+  DEBUGASSERT(homedir);
+  if(!*cp || !homedir) {
     *cpp = NULL;
     *path = NULL;
     return CURLE_QUOTE_ERROR;
@@ -147,15 +148,12 @@ CURLcode Curl_get_pathname(const char **cpp, char **path, char *homedir)
         break;
       }
       if(cp[i] == '\0') {  /* End of string */
-        /*error("Unterminated quote");*/
         goto fail;
       }
       if(cp[i] == '\\') {  /* Escaped characters */
         i++;
         if(cp[i] != '\'' && cp[i] != '\"' &&
             cp[i] != '\\') {
-          /*error("Bad escaped character '\\%c'",
-              cp[i]);*/
           goto fail;
         }
       }
@@ -163,7 +161,6 @@ CURLcode Curl_get_pathname(const char **cpp, char **path, char *homedir)
     }
 
     if(j == 0) {
-      /*error("Empty quotes");*/
       goto fail;
     }
     *cpp = cp + i + strspn(cp + i, WHITESPACE);

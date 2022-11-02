@@ -721,21 +721,6 @@ CURLcode Curl_http_auth_act(struct Curl_easy *data)
   return result;
 }
 
-/*
- * Curl_allow_auth_to_host() tells if authentication, cookies or other
- * "sensitive data" can (still) be sent to this host.
- */
-bool Curl_allow_auth_to_host(struct Curl_easy *data)
-{
-  struct connectdata *conn = data->conn;
-  return (!data->state.this_is_a_follow ||
-          data->set.allow_auth_to_other_hosts ||
-          (data->state.first_host &&
-           strcasecompare(data->state.first_host, conn->host.name) &&
-           (data->state.first_remote_port == conn->remote_port) &&
-           (data->state.first_remote_protocol == conn->handler->protocol)));
-}
-
 #ifndef CURL_DISABLE_HTTP_AUTH
 /*
  * Output the correct authentication header depending on the auth type
@@ -934,7 +919,7 @@ Curl_http_output_auth(struct Curl_easy *data,
 
   /* To prevent the user+password to get sent to other than the original host
      due to a location-follow */
-  if(Curl_allow_auth_to_host(data)
+  if(Curl_auth_allowed_to_host(data)
 #ifndef CURL_DISABLE_NETRC
      || conn->bits.netrc
 #endif
@@ -1256,7 +1241,7 @@ static size_t readmoredata(char *buffer,
     /* nothing to return */
     return 0;
 
-  /* make sure that a HTTP request is never sent away chunked! */
+  /* make sure that an HTTP request is never sent away chunked! */
   data->req.forbidchunk = (http->sending == HTTPSEND_REQUEST)?TRUE:FALSE;
 
   if(data->set.max_send_speed &&
@@ -1988,7 +1973,7 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
                    checkprefix("Cookie:", compare)) &&
                   /* be careful of sending this potentially sensitive header to
                      other hosts */
-                  !Curl_allow_auth_to_host(data))
+                  !Curl_auth_allowed_to_host(data))
             ;
           else {
 #ifdef USE_HYPER
@@ -2156,7 +2141,7 @@ CURLcode Curl_http_host(struct Curl_easy *data, struct connectdata *conn)
 {
   const char *ptr;
   if(!data->state.this_is_a_follow) {
-    /* Free to avoid leaking memory on multiple requests*/
+    /* Free to avoid leaking memory on multiple requests */
     free(data->state.first_host);
 
     data->state.first_host = strdup(conn->host.name);
@@ -3042,14 +3027,14 @@ CURLcode Curl_http_firstwrite(struct Curl_easy *data,
   if(data->set.timecondition && !data->state.range) {
     /* A time condition has been set AND no ranges have been requested. This
        seems to be what chapter 13.3.4 of RFC 2616 defines to be the correct
-       action for a HTTP/1.1 client */
+       action for an HTTP/1.1 client */
 
     if(!Curl_meets_timecondition(data, k->timeofdoc)) {
       *done = TRUE;
-      /* We're simulating a http 304 from server so we return
+      /* We're simulating an HTTP 304 from server so we return
          what should have been returned from the server */
       data->info.httpcode = 304;
-      infof(data, "Simulate a HTTP 304 response");
+      infof(data, "Simulate an HTTP 304 response");
       /* we abort the transfer before it is completed == we ruin the
          re-use ability. Close the connection */
       streamclose(conn, "Simulated 304 handling");
@@ -3095,7 +3080,7 @@ CURLcode Curl_transferencode(struct Curl_easy *data)
 
 #ifndef USE_HYPER
 /*
- * Curl_http() gets called from the generic multi_do() function when a HTTP
+ * Curl_http() gets called from the generic multi_do() function when an HTTP
  * request is to be performed. This creates and sends a properly constructed
  * HTTP request.
  */
@@ -3132,7 +3117,7 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
         /* continue with HTTP/1.1 when explicitly requested */
         break;
       default:
-        /* Check if user wants to use HTTP/2 with clear TCP*/
+        /* Check if user wants to use HTTP/2 with clear TCP */
 #ifdef USE_NGHTTP2
         if(data->state.httpwant == CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE) {
 #ifndef CURL_DISABLE_PROXY
@@ -3155,7 +3140,7 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
       }
     }
     else {
-      /* prepare for a http2 request */
+      /* prepare for an http2 request */
       result = Curl_http2_setup(data, conn);
       if(result)
         return result;
@@ -3512,7 +3497,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
                              STRCONST("Proxy-Connection:"),
                              STRCONST("keep-alive"))) {
     /*
-     * When a HTTP/1.0 reply comes when using a proxy, the
+     * When an HTTP/1.0 reply comes when using a proxy, the
      * 'Proxy-Connection: keep-alive' line tells us the
      * connection will be kept alive for our pleasure.
      * Default action for 1.0 is to close.
@@ -3526,7 +3511,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
                              STRCONST("Proxy-Connection:"),
                              STRCONST("close"))) {
     /*
-     * We get a HTTP/1.1 response from a proxy and it says it'll
+     * We get an HTTP/1.1 response from a proxy and it says it'll
      * close down after this transfer.
      */
     connclose(conn, "Proxy-Connection: asked to close after done");
@@ -3538,7 +3523,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
                              STRCONST("Connection:"),
                              STRCONST("keep-alive"))) {
     /*
-     * A HTTP/1.0 reply with the 'Connection: keep-alive' line
+     * An HTTP/1.0 reply with the 'Connection: keep-alive' line
      * tells us the connection will be kept alive for our
      * pleasure.  Default action for 1.0 is to close.
      *
@@ -3598,15 +3583,15 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
   else if(checkprefix("Retry-After:", headp)) {
     /* Retry-After = HTTP-date / delay-seconds */
     curl_off_t retry_after = 0; /* zero for unknown or "now" */
-    time_t date = Curl_getdate_capped(headp + strlen("Retry-After:"));
-    if(-1 == date) {
-      /* not a date, try it as a decimal number */
-      (void)curlx_strtoofft(headp + strlen("Retry-After:"),
-                            NULL, 10, &retry_after);
+    /* Try it as a decimal number, if it works it is not a date */
+    (void)curlx_strtoofft(headp + strlen("Retry-After:"),
+                          NULL, 10, &retry_after);
+    if(!retry_after) {
+      time_t date = Curl_getdate_capped(headp + strlen("Retry-After:"));
+      if(-1 != date)
+        /* convert date to number of seconds into the future */
+        retry_after = date - time(NULL);
     }
-    else
-      /* convert date to number of seconds into the future */
-      retry_after = date - time(NULL);
     data->info.retry_after = retry_after; /* store it */
   }
   else if(!k->http_bodyless && checkprefix("Content-Range:", headp)) {
@@ -3730,7 +3715,14 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
 #ifndef CURL_DISABLE_HSTS
   /* If enabled, the header is incoming and this is over HTTPS */
   else if(data->hsts && checkprefix("Strict-Transport-Security:", headp) &&
-          (conn->handler->flags & PROTOPT_SSL)) {
+          ((conn->handler->flags & PROTOPT_SSL) ||
+#ifdef CURLDEBUG
+           /* allow debug builds to circumvent the HTTPS restriction */
+           getenv("CURL_HSTS_HTTP")
+#else
+           0
+#endif
+            )) {
     CURLcode check =
       Curl_hsts_parse(data->hsts, data->state.up.hostname,
                       headp + strlen("Strict-Transport-Security:"));
@@ -4020,7 +4012,7 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
         switch(k->httpcode) {
         case 100:
           /*
-           * We have made a HTTP PUT or POST and this is 1.1-lingo
+           * We have made an HTTP PUT or POST and this is 1.1-lingo
            * that tells us that the server is OK with this and ready
            * to receive the data.
            * However, we'll get more headers now so we must get

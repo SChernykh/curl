@@ -60,13 +60,18 @@
  * protocol fields in the protocol handler.
  */
 #define CURLPROTO_WS     (1<<30)
-#define CURLPROTO_WSS    (1LL<<31)
-
-/* This type should be bumped to a curl_off_t once we need bit 32 or higher */
-typedef unsigned int curl_prot_t;
+#define CURLPROTO_WSS    ((curl_prot_t)1<<31)
 #else
 #define CURLPROTO_WS 0
 #define CURLPROTO_WSS 0
+#endif
+
+/* This should be undefined once we need bit 32 or higher */
+#define PROTO_TYPE_SMALL
+
+#ifndef PROTO_TYPE_SMALL
+typedef curl_off_t curl_prot_t;
+#else
 typedef unsigned int curl_prot_t;
 #endif
 
@@ -180,10 +185,10 @@ typedef CURLcode (*Curl_datastream)(struct Curl_easy *data,
 # endif
 #endif
 
-#ifdef HAVE_LIBSSH2_H
+#ifdef USE_LIBSSH2
 #include <libssh2.h>
 #include <libssh2_sftp.h>
-#endif /* HAVE_LIBSSH2_H */
+#endif /* USE_LIBSSH2 */
 
 #define READBUFFER_SIZE CURL_MAX_WRITE_SIZE
 #define READBUFFER_MAX  CURL_MAX_READ_SIZE
@@ -259,7 +264,7 @@ struct ssl_connect_data {
 
 struct ssl_primary_config {
   long version;          /* what version the client wants to use */
-  long version_max;      /* max supported version the client wants to use*/
+  long version_max;      /* max supported version the client wants to use */
   char *CApath;          /* certificate dir (doesn't work on windows) */
   char *CAfile;          /* certificate to verify peer against */
   char *issuercert;      /* optional issuer certificate filename */
@@ -296,7 +301,7 @@ struct ssl_config_data {
   char *key_passwd; /* plain text private key password */
   BIT(certinfo);     /* gather lots of certificate info */
   BIT(falsestart);
-  BIT(enable_beast); /* allow this flaw for interoperability's sake*/
+  BIT(enable_beast); /* allow this flaw for interoperability's sake */
   BIT(no_revoke);    /* disable SSL certificate revocation checks */
   BIT(no_partialchain); /* don't accept partial certificate chains */
   BIT(revoke_best_effort); /* ignore SSL revocation offline/missing revocation
@@ -476,7 +481,7 @@ struct ConnectBits {
 #ifndef CURL_DISABLE_PROXY
   bool proxy_ssl_connected[2]; /* TRUE when SSL initialization for HTTPS proxy
                                   is complete */
-  BIT(httpproxy);  /* if set, this transfer is done through a http proxy */
+  BIT(httpproxy);  /* if set, this transfer is done through an HTTP proxy */
   BIT(socksproxy); /* if set, this transfer is done through a socks proxy */
   BIT(proxy_user_passwd); /* user+password for the proxy? */
   BIT(tunnel_proxy);  /* if CONNECT is used to "tunnel" through the proxy.
@@ -575,7 +580,7 @@ struct Curl_async {
   struct Curl_dns_entry *dns;
   struct thread_data *tdata;
   void *resolver; /* resolver state, if it is used in the URL state -
-                     ares_channel f.e. */
+                     ares_channel e.g. */
   int port;
   int status; /* if done is TRUE, this is the status from the callback */
   BIT(done);  /* set TRUE when the lookup is complete */
@@ -915,8 +920,8 @@ struct connectdata {
   struct Curl_llist_element bundle_node; /* conncache */
 
   /* chunk is for HTTP chunked encoding, but is in the general connectdata
-     struct only because we can do just about any protocol through a HTTP proxy
-     and a HTTP proxy may in fact respond using chunked encoding */
+     struct only because we can do just about any protocol through an HTTP
+     proxy and an HTTP proxy may in fact respond using chunked encoding */
   struct Curl_chunker chunk;
 
   curl_closesocket_callback fclosesocket; /* function closing the socket(s) */
@@ -1855,7 +1860,7 @@ struct UserDefined {
    this session. They are STATIC, set by libcurl users or at least initially
    and they don't change during operations. */
   BIT(get_filetime);     /* get the time and get of the remote file */
-  BIT(tunnel_thru_httpproxy); /* use CONNECT through a HTTP proxy */
+  BIT(tunnel_thru_httpproxy); /* use CONNECT through an HTTP proxy */
   BIT(prefer_ascii);     /* ASCII rather than binary */
   BIT(remote_append);    /* append, not overwrite, on upload */
   BIT(list_only);        /* list directory */

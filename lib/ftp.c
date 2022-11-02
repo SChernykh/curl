@@ -74,7 +74,6 @@
 #include "sockaddr.h" /* required for Curl_sockaddr_storage */
 #include "multiif.h"
 #include "url.h"
-#include "strcase.h"
 #include "speedcheck.h"
 #include "warnless.h"
 #include "http_proxy.h"
@@ -516,11 +515,9 @@ static CURLcode AllowServerConnect(struct Curl_easy *data, bool *connected)
   }
   else {
     /* Add timeout to multi handle and break out of the loop */
-    if(*connected == FALSE) {
-      Curl_expire(data, data->set.accepttimeout > 0 ?
-                  data->set.accepttimeout: DEFAULT_ACCEPT_TIMEOUT,
-                  EXPIRE_FTP_ACCEPT);
-    }
+    Curl_expire(data, data->set.accepttimeout ?
+                data->set.accepttimeout: DEFAULT_ACCEPT_TIMEOUT,
+                EXPIRE_FTP_ACCEPT);
   }
 
   return result;
@@ -1167,7 +1164,7 @@ static CURLcode ftp_state_use_port(struct Curl_easy *data,
     port++;
   }
 
-  /* maybe all ports were in use already*/
+  /* maybe all ports were in use already */
   if(port > port_max) {
     failf(data, "bind() failed, we ran out of ports");
     Curl_closesocket(data, conn, portsock);
@@ -2094,7 +2091,7 @@ static CURLcode ftp_state_mdtm_resp(struct Curl_easy *data,
 
 #ifdef CURL_FTP_HTTPSTYLE_HEAD
       /* If we asked for a time of the file and we actually got one as well,
-         we "emulate" a HTTP-style header in our output. */
+         we "emulate" an HTTP-style header in our output. */
 
       if(data->set.opt_no_body &&
          ftpc->file &&

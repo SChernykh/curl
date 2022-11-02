@@ -95,7 +95,6 @@ problems may have been fixed or changed somewhat since this was written.
  7.12 FTPS directory listing hangs on Windows with Schannel
 
  8. TELNET
- 8.1 TELNET and time limitations do not work
  8.2 Microsoft telnet server
 
  9. SFTP and SCP
@@ -119,7 +118,6 @@ problems may have been fixed or changed somewhat since this was written.
  11.9 DoH does not inherit all transfer options
  11.10 Blocking socket operations in non-blocking API
  11.11 A shared connection cache is not thread-safe
- 11.12 'no_proxy' string-matches IPv6 numerical addresses
  11.14 Multi perform hangs waiting for threaded resolver
  11.15 CURLOPT_OPENSOCKETPAIRFUNCTION is missing
  11.16 libcurl uses renames instead of locking for atomic operations
@@ -165,7 +163,7 @@ problems may have been fixed or changed somewhat since this was written.
  18. HTTP/3
  18.1 If the HTTP/3 server closes connection during upload curl hangs
  18.2 Transfer closed with n bytes remaining to read
- 18.4 timeout when reusing a http3 connection
+ 18.4 timeout when reusing an http3 connection
  18.9 connection migration does not work
 
 ==============================================================================
@@ -782,11 +780,6 @@ problems may have been fixed or changed somewhat since this was written.
 
 8. TELNET
 
-8.1 TELNET and time limitations do not work
-
- When using telnet, the time limitation options do not work.
- https://curl.se/bug/view.cgi?id=846
-
 8.2 Microsoft telnet server
 
  There seems to be a problem when connecting to the Microsoft telnet server.
@@ -931,13 +924,6 @@ problems may have been fixed or changed somewhat since this was written.
 
  See https://github.com/curl/curl/issues/4915 and lib1541.c
 
-11.12 'no_proxy' string-matches IPv6 numerical addresses
-
- This has the downside that "::1" for example does not match "::0:1" even
- though they are in fact the same address.
-
- See https://github.com/curl/curl/issues/5745
-
 11.14 Multi perform hangs waiting for threaded resolver
 
  If a threaded resolver takes a long time to complete, libcurl can be blocked
@@ -969,10 +955,10 @@ problems may have been fixed or changed somewhat since this was written.
 
 12.1 OpenLDAP hangs after returning results
 
- By configuration defaults, openldap automatically chase referrals on
+ By configuration defaults, OpenLDAP automatically chase referrals on
  secondary socket descriptors. The OpenLDAP backend is asynchronous and thus
  should monitor all socket descriptors involved. Currently, these secondary
- descriptors are not monitored, causing openldap library to never receive
+ descriptors are not monitored, causing OpenLDAP library to never receive
  data from them.
 
  As a temporary workaround, disable referrals chasing by configuration.
@@ -1167,7 +1153,7 @@ problems may have been fixed or changed somewhat since this was written.
 
  https://github.com/curl/curl/issues/8523
 
-18.4 timeout when reusing a http3 connection
+18.4 timeout when reusing an http3 connection
 
  HTTP/3 with quiche seems to not work and always timeout a subsequent transfer
  that reuses an already established connection

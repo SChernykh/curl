@@ -146,15 +146,15 @@ Curl_ssl_config_matches(struct ssl_primary_config *data,
      Curl_safecmp(data->issuercert, needle->issuercert) &&
      Curl_safecmp(data->clientcert, needle->clientcert) &&
 #ifdef USE_TLS_SRP
-     Curl_safecmp(data->username, needle->username) &&
-     Curl_safecmp(data->password, needle->password) &&
+     !Curl_timestrcmp(data->username, needle->username) &&
+     !Curl_timestrcmp(data->password, needle->password) &&
      (data->authtype == needle->authtype) &&
 #endif
-     Curl_safe_strcasecompare(data->cipher_list, needle->cipher_list) &&
-     Curl_safe_strcasecompare(data->cipher_list13, needle->cipher_list13) &&
-     Curl_safe_strcasecompare(data->curves, needle->curves) &&
-     Curl_safe_strcasecompare(data->CRLfile, needle->CRLfile) &&
-     Curl_safe_strcasecompare(data->pinned_key, needle->pinned_key))
+     strcasecompare(data->cipher_list, needle->cipher_list) &&
+     strcasecompare(data->cipher_list13, needle->cipher_list13) &&
+     strcasecompare(data->curves, needle->curves) &&
+     strcasecompare(data->CRLfile, needle->CRLfile) &&
+     strcasecompare(data->pinned_key, needle->pinned_key))
     return TRUE;
 
   return FALSE;

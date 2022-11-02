@@ -55,8 +55,6 @@ CURL_CHECK_OPTION_ECH
 
 XC_CHECK_PATH_SEPARATOR
 
-LT_LANG([Windows Resource])
-
 #
 # save the configure arguments
 #
@@ -351,6 +349,8 @@ AC_SYS_LARGEFILE
 
 XC_LIBTOOL
 
+LT_LANG([Windows Resource])
+
 #
 # Automake conditionals based on libtool related checks
 #
@@ -570,7 +570,13 @@ CURL_DARWIN_CFLAGS
 CURL_DARWIN_SYSTEMCONFIGURATION
 CURL_SUPPORTS_BUILTIN_AVAILABLE
 
-AM_CONDITIONAL([OS_WINDOWS], [test "$curl_cv_native_windows" = "yes"])
+AM_CONDITIONAL([HAVE_WINDRES],
+  [test "$curl_cv_native_windows" = "yes" && test -n "${RC}"])
+
+if test "$curl_cv_native_windows" = "yes"; then
+  AM_COND_IF([HAVE_WINDRES],,
+    [AC_MSG_ERROR([windres not found in PATH. Windows builds require windres. Cannot continue.])])
+fi
 
 dnl ************************************************************
 dnl switch off particular protocols
@@ -1310,7 +1316,6 @@ else
   then
     dnl both header and lib were found!
     AC_SUBST(HAVE_LIBZ)
-    AC_DEFINE(HAVE_ZLIB_H, 1, [if you have the zlib.h header file])
     AC_DEFINE(HAVE_LIBZ, 1, [if zlib is available])
 
     ZLIB_LIBS="-lz"
@@ -2132,7 +2137,7 @@ if test X"$OPT_LIBSSH2" != Xno; then
   dnl check for function added in libssh2 version 1.0
   AC_CHECK_LIB(ssh2, libssh2_session_block_directions)
 
-  AC_CHECK_HEADERS(libssh2.h,
+  AC_CHECK_HEADER(libssh2.h,
     curl_ssh_msg="enabled (libSSH2)"
     LIBSSH2_ENABLED=1
     AC_DEFINE(USE_LIBSSH2, 1, [if libSSH2 is in use])
@@ -2205,7 +2210,7 @@ elif test X"$OPT_LIBSSH" != Xno; then
 
   AC_CHECK_LIB(ssh, ssh_new)
 
-  AC_CHECK_HEADERS(libssh/libssh.h,
+  AC_CHECK_HEADER(libssh/libssh.h,
     curl_ssh_msg="enabled (libSSH)"
     LIBSSH_ENABLED=1
     AC_DEFINE(USE_LIBSSH, 1, [if libSSH is in use])
@@ -2480,7 +2485,6 @@ if test "$want_winidn" = "yes"; then
   #
   if test "$tst_links_winidn" = "yes"; then
     AC_DEFINE(USE_WIN32_IDN, 1, [Define to 1 if you have the `normaliz' (WinIDN) library (-lnormaliz).])
-    AC_DEFINE(WANT_IDN_PROTOTYPES, 1, [Define to 1 to provide own prototypes.])
     AC_SUBST([IDN_ENABLED], [1])
     curl_idn_msg="enabled (Windows-native)"
   else
@@ -2718,7 +2722,7 @@ dnl **********************************************************************
 dnl Check for ngtcp2 (QUIC)
 dnl **********************************************************************
 
-OPT_TCP2="yes"
+OPT_TCP2="no"
 
 if test "x$disable_http" = "xyes"; then
   # without HTTP, ngtcp2 is no use
@@ -3388,6 +3392,18 @@ AC_CHECK_TYPE(long long,
 )
 
 
+if test ${ac_cv_sizeof_curl_off_t} -lt 8; then
+  AC_ARG_WITH(n64-deprecated,dnl
+AS_HELP_STRING([--with-n64-deprecated],[confirm you realize support for systems without 64 bit data types is going away]),
+  if test X"$withval" != Xno; then
+    OPT_N64_AWARE=$withval
+  fi
+)
+  if test -z "$OPT_N64_AWARE"; then
+    AC_MSG_ERROR([support for systems without 64 bit curl_off_t is deprecated, use --with-n64-deprecated until then])
+  fi
+fi
+
 # check for ssize_t
 AC_CHECK_TYPE(ssize_t, ,
    AC_DEFINE(ssize_t, int, [the signed version of size_t]))
@@ -3535,6 +3551,7 @@ AC_CHECK_FUNCS([fnmatch \
   setlocale \
   setmode \
   setrlimit \
+  snprintf \
   utime \
   utimes
 ],[
@@ -3893,17 +3910,23 @@ AS_HELP_STRING([--disable-unix-sockets],[Disable Unix domain sockets]),
        ]
 )
 if test "x$want_unix_sockets" != "xno"; then
-  AC_CHECK_MEMBER([struct sockaddr_un.sun_path], [
+  if test "x$curl_cv_native_windows" = "xyes"; then
+    USE_UNIX_SOCKETS=1
     AC_DEFINE(USE_UNIX_SOCKETS, 1, [Use Unix domain sockets])
-    AC_SUBST(USE_UNIX_SOCKETS, [1])
     curl_unix_sockets_msg="enabled"
-  ], [
-    if test "x$want_unix_sockets" = "xyes"; then
-      AC_MSG_ERROR([--enable-unix-sockets is not available on this platform!])
-    fi
-  ], [
-    #include <sys/un.h>
-  ])
+  else
+    AC_CHECK_MEMBER([struct sockaddr_un.sun_path], [
+      AC_DEFINE(USE_UNIX_SOCKETS, 1, [Use Unix domain sockets])
+      AC_SUBST(USE_UNIX_SOCKETS, [1])
+      curl_unix_sockets_msg="enabled"
+    ], [
+      if test "x$want_unix_sockets" = "xyes"; then
+        AC_MSG_ERROR([--enable-unix-sockets is not available on this platform!])
+      fi
+    ], [
+      #include <sys/un.h>
+    ])
+  fi
 fi
 
 dnl ************************************************************

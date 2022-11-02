@@ -56,7 +56,6 @@
 #define HAVE_NETINET_IN_H      1
 #define HAVE_NETINET_TCP_H     1
 #define HAVE_NET_IF_H          1
-#define HAVE_PROCESS_H         1
 #define HAVE_RECV              1
 #define HAVE_SELECT            1
 #define HAVE_SEND              1
@@ -105,9 +104,7 @@
 /* CURLDEBUG definition enables memory tracking */
 /* #define CURLDEBUG */
 
-/* USE_ZLIB on cmd-line */
-#ifdef USE_ZLIB
-  #define HAVE_ZLIB_H            1
+#ifdef USE_ZLIB  /* Deprecated. Use HAVE_LIBZ instead. */
   #define HAVE_LIBZ              1
 #endif
 

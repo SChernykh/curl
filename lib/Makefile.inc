@@ -177,6 +177,7 @@ LIB_CFILES =         \
   multi.c            \
   netrc.c            \
   nonblock.c         \
+  noproxy.c          \
   openldap.c         \
   parsedate.c        \
   pingpong.c         \
@@ -271,6 +272,7 @@ LIB_HFILES =         \
   fileinfo.h         \
   fopen.h            \
   formdata.h         \
+  functypes.h        \
   ftp.h              \
   ftplistparser.h    \
   getinfo.h          \
@@ -300,6 +302,7 @@ LIB_HFILES =         \
   multiif.h          \
   netrc.h            \
   nonblock.h         \
+  noproxy.h          \
   parsedate.h        \
   pingpong.h         \
   pop3.h             \
