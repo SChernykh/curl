@@ -6,6 +6,21 @@ SPDX-License-Identifier: curl
 
 # WebSocket in curl
 
+## URL
+
+WebSocket communication with libcurl is done by setting up a transfer to a URL
+using the `ws:/` or `wss://` URL schemes. The latter one being the secure
+version done over HTTPS.
+
+When using `wss://` to do WebSocket over HTTPS, the standard TLS and HTTPS
+options will be acknowledged for the CA, verification of server certificate
+etc.
+
+WebSocket communication is done by upgrading a connection from either HTTP or
+HTTPS. When given a WebSocket URL to work with, libcurl considers it a
+transfer failure if the upgrade procedure fails. This means that a plain HTTP
+200 response code is considered an error for this work.
+
 ## API
 
 The WebSocket API is described in the individual man pages for the new API.
@@ -94,7 +109,7 @@ Ideas:
 
 ## Why not libWebSocket
 
-[libWebSocket](https://libWebSocket.org/) is said to be a solid, fast and
+[libWebSocket](https://libWebSockets.org/) is said to be a solid, fast and
 efficient WebSocket library with a vast amount of users. My plan was
 originally to build upon it to skip having to implement the low level parts of
 WebSocket myself.

@@ -433,6 +433,7 @@ ParameterError proto2num(struct OperationConfig *config,
     result = curlx_dyn_addf(&obuf, "%s,", protoset[proto]);
   free((char *) protoset);
   curlx_dyn_setlen(&obuf, curlx_dyn_len(&obuf) - 1);
+  free(*ostr);
   *ostr = curlx_dyn_ptr(&obuf);
 
   return *ostr ? PARAM_OK : PARAM_NO_MEM;
@@ -473,7 +474,7 @@ ParameterError str2offset(curl_off_t *val, const char *str)
 
 #if(SIZEOF_CURL_OFF_T > SIZEOF_LONG)
   {
-    CURLofft offt = curlx_strtoofft(str, &endptr, 0, val);
+    CURLofft offt = curlx_strtoofft(str, &endptr, 10, val);
     if(CURL_OFFT_FLOW == offt)
       return PARAM_NUMBER_TOO_LARGE;
     else if(CURL_OFFT_INVAL == offt)

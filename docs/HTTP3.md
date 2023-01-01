@@ -15,7 +15,7 @@ QUIC libraries we are experimenting with:
 
 [quiche](https://github.com/cloudflare/quiche)
 
-[msquic](https://github.com/microsoft/msquic) & [msh3](https://github.com/nibanks/msh3)
+[msh3](https://github.com/nibanks/msh3) (with [msquic](https://github.com/microsoft/msquic))
 
 ## Experimental
 
@@ -24,6 +24,14 @@ notice. It needs to be enabled at build-time.
 
 Further development and tweaking of the HTTP/3 support in curl will happen in
 the master branch using pull-requests, just like ordinary changes.
+
+To fix before we remove the experimental label:
+
+ - working multiplexing and GTFO handling
+ - fallback or another flexible way to go (back to) h1/h2 if h3 fails
+ - enough test cases to verify basic HTTP/3 functionality
+ - no "important" bugs left on HTTP/3
+ - it's fine to "leave" individual backends as experimental if necessary
 
 # ngtcp2 version
 
@@ -181,7 +189,7 @@ Build curl:
 
 Build msh3:
 
-     % git clone -b v0.4.0 --depth 1 --recursive https://github.com/nibanks/msh3
+     % git clone -b v0.5.0 --depth 1 --recursive https://github.com/nibanks/msh3
      % cd msh3 && mkdir build && cd build
      % cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
      % cmake --build .
@@ -202,7 +210,7 @@ Run from `/usr/local/bin/curl`.
 
 Build msh3:
 
-     % git clone -b v0.4.0 --depth 1 --recursive https://github.com/nibanks/msh3
+     % git clone -b v0.5.0 --depth 1 --recursive https://github.com/nibanks/msh3
      % cd msh3 && mkdir build && cd build
      % cmake -G 'Visual Studio 17 2022' -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
      % cmake --build . --config Release
