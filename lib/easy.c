@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -163,6 +163,11 @@ static CURLcode global_init(long flags, bool memoryfuncs)
 #if defined(WIN32) && defined(UNICODE)
     Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
 #endif
+  }
+
+  if(Curl_log_init()) {
+    DEBUGF(fprintf(stderr, "Error: Curl_log_init failed\n"));
+    goto fail;
   }
 
   if(!Curl_ssl_init()) {
@@ -1223,7 +1228,7 @@ CURLcode curl_easy_recv(struct Curl_easy *data, void *buffer, size_t buflen,
     return result;
 
   *n = (size_t)n1;
-
+  infof(data, "reached %s:%d", __FILE__, __LINE__);
   return CURLE_OK;
 }
 

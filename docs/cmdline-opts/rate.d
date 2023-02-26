@@ -1,4 +1,4 @@
-c: Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Long: rate
 Arg: <max request rate>
@@ -10,6 +10,7 @@ Example: --rate 14/m $URL
 Added: 7.84.0
 See-also: limit-rate retry-delay
 Multi: single
+Scope: global
 ---
 Specify the maximum transfer frequency you allow curl to use - in number of
 transfer starts per time unit (sometimes called request rate). Without this

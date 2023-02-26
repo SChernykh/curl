@@ -1,4 +1,4 @@
-# Copyright (C) 2000 - 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # SPDX-License-Identifier: curl
 
@@ -9,9 +9,13 @@ on:
     branches:
     - master
     - '*/ci'
+    paths-ignore:
+    - '**/*.md'
   pull_request:
     branches:
     - master
+    paths-ignore:
+    - '**/*.md'
 
 concurrency:
   # Hardcoded workflow filename as workflow name above is just Linux again
@@ -46,9 +50,10 @@ jobs:
       name: 'install prereqs and impacket'
 
     - run: |
-        curl -LO https://github.com/wolfSSL/wolfssl/archive/v5.0.0-stable.tar.gz
-        tar -xzf v5.0.0-stable.tar.gz
-        cd wolfssl-5.0.0-stable
+        WOLFSSL_VER=5.5.4
+        curl -LOsSf --retry 6 --retry-connrefused --max-time 999 https://github.com/wolfSSL/wolfssl/archive/v$WOLFSSL_VER-stable.tar.gz
+        tar -xzf v$WOLFSSL_VER-stable.tar.gz
+        cd wolfssl-$WOLFSSL_VER-stable
         ./autogen.sh
         ./configure --enable-tls13 ${{ matrix.build.wolfssl-configure }} --enable-harden --prefix=$HOME/wssl
         make install

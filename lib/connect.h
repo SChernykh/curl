@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -89,7 +89,7 @@ void Curl_conncontrol(struct connectdata *conn,
 
 /**
  * Create a cfilter for making an "ip" connection to the
- * given address, using paramters from `conn`. The "ip" connection
+ * given address, using parameters from `conn`. The "ip" connection
  * can be a TCP socket, a UDP socket or even a QUIC connection.
  *
  * It MUST use only the supplied `ai` for its connection attempt.
@@ -101,7 +101,8 @@ void Curl_conncontrol(struct connectdata *conn,
 typedef CURLcode cf_ip_connect_create(struct Curl_cfilter **pcf,
                                       struct Curl_easy *data,
                                       struct connectdata *conn,
-                                      const struct Curl_addrinfo *ai);
+                                      const struct Curl_addrinfo *ai,
+                                      int transport);
 
 /**
  * Create a happy eyeball connection filter that uses the, once resolved,
@@ -118,13 +119,26 @@ Curl_cf_happy_eyeballs_create(struct Curl_cfilter **pcf,
                               struct Curl_easy *data,
                               struct connectdata *conn,
                               cf_ip_connect_create *cf_create,
-                              const struct Curl_dns_entry *remotehost);
+                              const struct Curl_dns_entry *remotehost,
+                              int transport);
+
+CURLcode Curl_cf_setup_add(struct Curl_easy *data,
+                           struct connectdata *conn,
+                           int sockindex,
+                           const struct Curl_dns_entry *remotehost,
+                           int transport,
+                           int ssl_mode);
+
+CURLcode Curl_cf_setup_insert_after(struct Curl_cfilter *cf_at,
+                                    struct Curl_easy *data,
+                                    const struct Curl_dns_entry *remotehost,
+                                    int transport,
+                                    int ssl_mode);
 
 /**
- * Setup the cfilters at `sockindex` in connection `conn`, invoking
- * the instance `setup(remotehost)` methods. If no filter chain is
- * installed yet, inspects the configuration in `data` to install a
- * suitable filter chain.
+ * Setup the cfilters at `sockindex` in connection `conn`.
+ * If no filter chain is installed yet, inspects the configuration
+ * in `data` and `conn? to install a suitable filter chain.
  */
 CURLcode Curl_conn_setup(struct Curl_easy *data,
                          struct connectdata *conn,
@@ -132,5 +146,12 @@ CURLcode Curl_conn_setup(struct Curl_easy *data,
                          const struct Curl_dns_entry *remotehost,
                          int ssl_mode);
 
+extern struct Curl_cftype Curl_cft_happy_eyeballs;
+extern struct Curl_cftype Curl_cft_setup;
+
+#ifdef DEBUGBUILD
+void Curl_debug_set_transport_provider(int transport,
+                                       cf_ip_connect_create *cf_create);
+#endif
 
 #endif /* HEADER_CURL_CONNECT_H */

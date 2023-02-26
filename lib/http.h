@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2023, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -42,7 +42,7 @@ typedef enum {
 
 #ifndef CURL_DISABLE_HTTP
 
-#if defined(_WIN32) && (defined(ENABLE_QUIC) || defined(USE_NGHTTP2))
+#if defined(ENABLE_QUIC) || defined(USE_NGHTTP2)
 #include <stdint.h>
 #endif
 
@@ -74,8 +74,10 @@ char *Curl_checkProxyheaders(struct Curl_easy *data,
                              const struct connectdata *conn,
                              const char *thisheader,
                              const size_t thislen);
+struct HTTP; /* see below */
 CURLcode Curl_buffer_send(struct dynbuf *in,
                           struct Curl_easy *data,
+                          struct HTTP *http,
                           curl_off_t *bytes_written,
                           curl_off_t included_body_bytes,
                           int socketindex);
@@ -198,6 +200,7 @@ struct HTTP {
     void *fread_in;           /* backup storage for fread_in pointer */
     const char *postdata;
     curl_off_t postsize;
+    struct Curl_easy *data;
   } backup;
 
   enum {
@@ -236,7 +239,6 @@ struct HTTP {
 #if defined(USE_NGHTTP2) || defined(USE_NGHTTP3)
   bool bodystarted;
   int status_code; /* HTTP status code */
-  bool closed; /* TRUE on HTTP2 stream close */
   char *mem;     /* points to a buffer in memory to store received data */
   size_t len;    /* size of the buffer 'mem' points to */
   size_t memlen; /* size of data copied to mem */
@@ -246,6 +248,8 @@ struct HTTP {
   const uint8_t *upload_mem; /* points to a buffer to read from */
   size_t upload_len; /* size of the buffer 'upload_mem' points to */
   curl_off_t upload_left; /* number of bytes left to upload */
+  bool closed; /* TRUE on stream close */
+  bool reset;  /* TRUE on stream reset */
 #endif
 
 #ifdef ENABLE_QUIC
@@ -260,7 +264,7 @@ struct HTTP {
   bool upload_done;
 #endif /* ENABLE_QUIC */
 #ifdef USE_NGHTTP3
-  size_t unacked_window;
+  size_t recv_buf_nonflow; /* buffered bytes, not counting for flow control */
   struct h3out *h3out; /* per-stream buffers for upload */
   struct dynbuf overflow; /* excess data received during a single Curl_read */
 #endif /* USE_NGHTTP3 */
@@ -271,10 +275,10 @@ struct HTTP {
 #else /* !_WIN32 */
   pthread_mutex_t recv_lock;
 #endif /* _WIN32 */
-
   /* Receive Buffer (Headers and Data) */
   uint8_t* recv_buf;
   size_t recv_buf_alloc;
+  size_t recv_buf_max;
   /* Receive Headers */
   size_t recv_header_len;
   bool recv_header_complete;
@@ -284,6 +288,12 @@ struct HTTP {
   /* General Receive Error */
   CURLcode recv_error;
 #endif /* USE_MSH3 */
+#ifdef USE_QUICHE
+  bool h3_got_header; /* TRUE when h3 stream has recvd some HEADER */
+  bool h3_recving_data; /* TRUE when h3 stream is reading DATA */
+  bool h3_body_pending; /* TRUE when h3 stream may have more body DATA */
+  struct h3_event_node *pending;
+#endif /* USE_QUICHE */
 };
 
 CURLcode Curl_http_size(struct Curl_easy *data);

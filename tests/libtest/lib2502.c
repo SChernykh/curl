@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 2013 - 2022, Linus Nielsen Feltzing <linus@haxx.se>
+ * Copyright (C) Linus Nielsen Feltzing <linus@haxx.se>
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -74,10 +74,10 @@ int test(char *URL)
     target_url[sizeof(target_url) - 1] = '\0';
     easy_setopt(curl[i], CURLOPT_URL, target_url);
     /* go http2 */
-    easy_setopt(curl[i], CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3);
+    easy_setopt(curl[i], CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_3ONLY);
     easy_setopt(curl[i], CURLOPT_CONNECTTIMEOUT_MS, (long)5000);
     easy_setopt(curl[i], CURLOPT_CAINFO, "./certs/EdelCurlRoot-ca.cacert");
-    /* wait for first connection establised to see if we can share it */
+    /* wait for first connection established to see if we can share it */
     easy_setopt(curl[i], CURLOPT_PIPEWAIT, 1L);
     /* go verbose */
     easy_setopt(curl[i], CURLOPT_VERBOSE, 1L);

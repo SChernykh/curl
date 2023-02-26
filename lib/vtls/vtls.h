@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -27,7 +27,6 @@
 
 struct connectdata;
 struct ssl_config_data;
-struct ssl_connect_data;
 struct ssl_primary_config;
 struct Curl_ssl_session;
 
@@ -73,6 +72,49 @@ CURLsslset Curl_init_sslset_nolock(curl_sslbackend id, const char *name,
 #define ALPN_HTTP_1_0 "http/1.0"
 #define ALPN_H2_LENGTH 2
 #define ALPN_H2 "h2"
+#define ALPN_H3_LENGTH 2
+#define ALPN_H3 "h3"
+
+/* conservative sizes on the ALPN entries and count we are handling,
+ * we can increase these if we ever feel the need or have to accommodate
+ * ALPN strings from the "outside". */
+#define ALPN_NAME_MAX     10
+#define ALPN_ENTRIES_MAX  3
+#define ALPN_PROTO_BUF_MAX   (ALPN_ENTRIES_MAX * (ALPN_NAME_MAX + 1))
+
+struct alpn_spec {
+  const char entries[ALPN_ENTRIES_MAX][ALPN_NAME_MAX];
+  size_t count; /* number of entries */
+};
+
+struct alpn_proto_buf {
+  unsigned char data[ALPN_PROTO_BUF_MAX];
+  int len;
+};
+
+CURLcode Curl_alpn_to_proto_buf(struct alpn_proto_buf *buf,
+                                const struct alpn_spec *spec);
+CURLcode Curl_alpn_to_proto_str(struct alpn_proto_buf *buf,
+                                const struct alpn_spec *spec);
+
+CURLcode Curl_alpn_set_negotiated(struct Curl_cfilter *cf,
+                                  struct Curl_easy *data,
+                                  const unsigned char *proto,
+                                  size_t proto_len);
+
+/**
+ * Get the ALPN specification to use for talking to remote host.
+ * May return NULL if ALPN is disabled on the connection.
+ */
+const struct alpn_spec *
+Curl_alpn_get_spec(struct Curl_easy *data, struct connectdata *conn);
+
+/**
+ * Get the ALPN specification to use for talking to the proxy.
+ * May return NULL if ALPN is disabled on the connection.
+ */
+const struct alpn_spec *
+Curl_alpn_get_proxy_spec(struct Curl_easy *data, struct connectdata *conn);
 
 
 char *Curl_ssl_snihost(struct Curl_easy *data, const char *host, size_t *olen);
@@ -214,6 +256,9 @@ bool Curl_ssl_supports(struct Curl_easy *data, int ssl_option);
  */
 void *Curl_ssl_get_internals(struct Curl_easy *data, int sockindex,
                              CURLINFO info, int n);
+
+extern struct Curl_cftype Curl_cft_ssl;
+extern struct Curl_cftype Curl_cft_ssl_proxy;
 
 #else /* if not USE_SSL */
 

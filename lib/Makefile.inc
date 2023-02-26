@@ -5,7 +5,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -79,15 +79,15 @@ LIB_VTLS_HFILES =           \
   vtls/x509asn1.h
 
 LIB_VQUIC_CFILES = \
-  vquic/msh3.c   \
-  vquic/ngtcp2.c   \
-  vquic/quiche.c   \
+  vquic/curl_msh3.c   \
+  vquic/curl_ngtcp2.c   \
+  vquic/curl_quiche.c   \
   vquic/vquic.c
 
 LIB_VQUIC_HFILES = \
-  vquic/msh3.h   \
-  vquic/ngtcp2.h   \
-  vquic/quiche.h   \
+  vquic/curl_msh3.h   \
+  vquic/curl_ngtcp2.h   \
+  vquic/curl_quiche.h   \
   vquic/vquic.h    \
   vquic/vquic_int.h
 
@@ -107,7 +107,8 @@ LIB_CFILES =         \
   base64.c           \
   bufref.c           \
   c-hyper.c          \
-  cf-socket.c          \
+  cf-http.c          \
+  cf-socket.c        \
   cfilters.c         \
   conncache.c        \
   connect.c          \
@@ -120,6 +121,7 @@ LIB_CFILES =         \
   curl_get_line.c    \
   curl_gethostname.c \
   curl_gssapi.c      \
+  curl_log.c         \
   curl_memrchr.c     \
   curl_multibyte.c   \
   curl_ntlm_core.c   \
@@ -231,7 +233,8 @@ LIB_HFILES =         \
   asyn.h             \
   bufref.h           \
   c-hyper.h          \
-  cf-socket.h          \
+  cf-http.h          \
+  cf-socket.h        \
   cfilters.h         \
   conncache.h        \
   connect.h          \
@@ -249,6 +252,7 @@ LIB_HFILES =         \
   curl_hmac.h        \
   curl_krb5.h        \
   curl_ldap.h        \
+  curl_log.h         \
   curl_md4.h         \
   curl_md5.h         \
   curl_memory.h      \

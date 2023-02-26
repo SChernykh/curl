@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -99,6 +99,14 @@ void Curl_sndbufset(curl_socket_t sockfd);
 #endif
 
 /**
+ * Assign the address `ai` to the Curl_sockaddr_ex `dest` and
+ * set the transport used.
+ */
+void Curl_sock_assign_addr(struct Curl_sockaddr_ex *dest,
+                           const struct Curl_addrinfo *ai,
+                           int transport);
+
+/**
  * Creates a cfilter that opens a TCP socket to the given address
  * when calling its `connect` implementation.
  * The filter will not touch any connection/data flags and can be
@@ -108,7 +116,8 @@ void Curl_sndbufset(curl_socket_t sockfd);
 CURLcode Curl_cf_tcp_create(struct Curl_cfilter **pcf,
                             struct Curl_easy *data,
                             struct connectdata *conn,
-                            const struct Curl_addrinfo *ai);
+                            const struct Curl_addrinfo *ai,
+                            int transport);
 
 /**
  * Creates a cfilter that opens a UDP socket to the given address
@@ -120,7 +129,8 @@ CURLcode Curl_cf_tcp_create(struct Curl_cfilter **pcf,
 CURLcode Curl_cf_udp_create(struct Curl_cfilter **pcf,
                             struct Curl_easy *data,
                             struct connectdata *conn,
-                            const struct Curl_addrinfo *ai);
+                            const struct Curl_addrinfo *ai,
+                            int transport);
 
 /**
  * Creates a cfilter that opens a UNIX socket to the given address
@@ -132,7 +142,8 @@ CURLcode Curl_cf_udp_create(struct Curl_cfilter **pcf,
 CURLcode Curl_cf_unix_create(struct Curl_cfilter **pcf,
                              struct Curl_easy *data,
                              struct connectdata *conn,
-                             const struct Curl_addrinfo *ai);
+                             const struct Curl_addrinfo *ai,
+                             int transport);
 
 /**
  * Creates a cfilter that keeps a listening socket.
@@ -158,12 +169,24 @@ bool Curl_cf_is_socket(struct Curl_cfilter *cf);
 /**
  * Peek at the socket and remote ip/port the socket filter is using.
  * The filter owns all returned values.
+ * @param psock             pointer to hold socket descriptor or NULL
+ * @param paddr             pointer to hold addr reference or NULL
+ * @param pr_ip_str         pointer to hold remote addr as string or NULL
+ * @param pr_port           pointer to hold remote port number or NULL
+ * @param pl_ip_str         pointer to hold local addr as string or NULL
+ * @param pl_port           pointer to hold local port number or NULL
  * Returns error if the filter is of invalid type.
  */
 CURLcode Curl_cf_socket_peek(struct Curl_cfilter *cf,
+                             struct Curl_easy *data,
                              curl_socket_t *psock,
                              const struct Curl_sockaddr_ex **paddr,
-                             const char **premote_ip_str,
-                             int *premote_port);
+                             const char **pr_ip_str, int *pr_port,
+                             const char **pl_ip_str, int *pl_port);
+
+extern struct Curl_cftype Curl_cft_tcp;
+extern struct Curl_cftype Curl_cft_udp;
+extern struct Curl_cftype Curl_cft_unix;
+extern struct Curl_cftype Curl_cft_tcp_accept;
 
 #endif /* HEADER_CURL_CF_SOCKET_H */

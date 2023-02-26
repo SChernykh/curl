@@ -6,7 +6,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 2018-2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -162,7 +162,7 @@ printf "Added files:                    %d (total %d)\n",
 printf "Deleted files:                  %d (delta: %d)\n", $deletes,
     $creates - $deletes;
 print "Diffstat:$diffstat" if(!$fileschanged);
-printf "Files changed:                  %d\n", $fileschanged;
+printf "Files changed:                  %d (%.2f%%)\n", $fileschanged, $fileschanged*100/$afiles;
 printf "Lines inserted:                 %d\n", $insertions;
 printf "Lines deleted:                  %d (delta: %d)\n", $deletions,
     $insertions - $deletions;

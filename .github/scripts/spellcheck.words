@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # SPDX-License-Identifier: curl
 #
@@ -20,6 +20,8 @@ AmigaOS
 AmiSSL
 anyauth
 anycast
+apache
+Apache
 API
 APIs
 APOP
@@ -135,6 +137,7 @@ CURLE
 CURLH
 curlimages
 curlrc
+curltest
 customizable
 CVE
 CVSS
@@ -295,6 +298,8 @@ hsts
 HTC
 html
 http
+httpd
+HTTPD
 HTTPAUTH
 httpget
 HttpGet
@@ -330,6 +335,9 @@ IoT
 ipadOS
 IPCXN
 IPv
+IPv4
+IPv4/6
+IPv6
 IRIs
 IRIX
 Itanium
@@ -577,6 +585,8 @@ ptr
 punycode
 py
 pycurl
+pytest
+Pytest
 QNX
 QoS
 Qubes
