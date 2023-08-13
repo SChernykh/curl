@@ -40,7 +40,7 @@ static void websocket_close(CURL *curl)
 static void websocket(CURL *curl)
 {
   char buffer[256];
-  struct curl_ws_frame *meta;
+  const struct curl_ws_frame *meta;
   size_t nread;
   size_t i = 0;
   FILE *save = fopen(libtest_arg2, FOPEN_WRITETEXT);
@@ -52,10 +52,13 @@ static void websocket(CURL *curl)
     CURLcode result =
       curl_ws_recv(curl, buffer, sizeof(buffer), &nread, &meta);
     if(result) {
+      if(result == CURLE_AGAIN)
+        /* crude busy-loop */
+        continue;
       printf("curl_ws_recv returned %d\n", (int)result);
       return;
     }
-    printf("%u: nread %u Age %u Flags %x "
+    printf("%u: nread %zu Age %u Flags %x "
            "Offset %" CURL_FORMAT_CURL_OFF_T " "
            "Bytesleft %" CURL_FORMAT_CURL_OFF_T "\n",
            (int)i,

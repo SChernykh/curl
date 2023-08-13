@@ -66,13 +66,16 @@ close(INC);
 sub manpageify {
     my ($k)=@_;
     my $l;
+    my $klong = $k;
+    # quote "bare" minuses in the long name
+    $klong =~ s/-/\\-/g;
     if($optlong{$k} ne "") {
         # both short + long
-        $l = "\\fI-".$optlong{$k}.", --$k\\fP";
+        $l = "\\fI-".$optlong{$k}.", \\-\\-$klong\\fP";
     }
     else {
         # only long
-        $l = "\\fI--$k\\fP";
+        $l = "\\fI\\-\\-$klong\\fP";
     }
     return $l;
 }
@@ -117,10 +120,9 @@ sub printdesc {
             }
         }
         # quote "bare" minuses in the output
-        $d =~ s/( |\\fI|^)--/$1\\-\\-/g;
-        $d =~ s/([ -]|\\fI|^)-/$1\\-/g;
-        # handle single quotes first on the line
-        $d =~ s/^(\s*)\'/$1\\(aq/;
+        $d =~ s/([^\\])-/$1\\-/g;
+        # replace single quotes
+        $d =~ s/\'/\\(aq/g;
         # handle double quotes first on the line
         $d =~ s/^(\s*)\"/$1\\(dq/;
         print $d;
@@ -170,8 +172,8 @@ sub too_old {
     elsif($version =~ /^(\d+)\.(\d+)/) {
         $a = $1 * 1000 + $2 * 10;
     }
-    if($a < 7300) {
-        # we consider everything before 7.30.0 to be too old to mention
+    if($a < 7500) {
+        # we consider everything before 7.50.0 to be too old to mention
         # specific changes for
         return 1;
     }
@@ -241,6 +243,10 @@ sub single {
             $protocols=$1;
         }
         elsif(/^See-also: *(.*)/i) {
+            if($seealso) {
+                print STDERR "ERROR: duplicated See-also in $f\n";
+                return 1;
+            }
             $seealso=$1;
         }
         elsif(/^Requires: *(.*)/i) {
@@ -312,6 +318,9 @@ sub single {
     }
     close(F);
     my $opt;
+
+    # escape minus
+    $long =~ s/-/\\-/g;
     if(defined($short) && $long) {
         $opt = "-$short, --$long";
     }
@@ -446,6 +455,8 @@ sub single {
         print "\nExample$s:\n.nf\n";
         foreach my $e (@examples) {
             $e =~ s!\$URL!https://example.com!g;
+            $e =~ s/\-/\\-/g;
+            $e =~ s/\'/\\(aq/g;
             print " curl $e\n";
         }
         print ".fi\n";

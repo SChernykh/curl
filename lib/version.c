@@ -62,7 +62,15 @@
 #endif
 
 #ifdef HAVE_BROTLI
+#if defined(__GNUC__)
+/* Ignore -Wvla warnings in brotli headers */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvla"
+#endif
 #include <brotli/decode.h>
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #endif
 
 #ifdef HAVE_ZSTD
@@ -292,7 +300,7 @@ char *curl_version(void)
    protocol line has its own #if line to make things easier on the eye.
  */
 
-static const char * const protocols[] = {
+static const char * const supported_protocols[] = {
 #ifndef CURL_DISABLE_DICT
   "dict",
 #endif
@@ -527,7 +535,7 @@ static curl_version_info_data version_info = {
   NULL, /* ssl_version */
   0,    /* ssl_version_num, this is kept at zero */
   NULL, /* zlib_version */
-  protocols,
+  supported_protocols,
   NULL, /* c-ares version */
   0,    /* c-ares version numerical */
   NULL, /* libidn version */

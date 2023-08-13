@@ -312,79 +312,6 @@ AC_DEFUN([CURL_CHECK_HEADER_WS2TCPIP], [
 ])
 
 
-dnl CURL_CHECK_HEADER_WINCRYPT
-dnl -------------------------------------------------
-dnl Check for compilable and valid wincrypt.h header
-
-AC_DEFUN([CURL_CHECK_HEADER_WINCRYPT], [
-  AC_REQUIRE([CURL_CHECK_HEADER_WINDOWS])dnl
-  AC_CACHE_CHECK([for wincrypt.h], [curl_cv_header_wincrypt_h], [
-    AC_COMPILE_IFELSE([
-      AC_LANG_PROGRAM([[
-#undef inline
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <wincrypt.h>
-      ]],[[
-        int dummy=2*PROV_RSA_FULL;
-      ]])
-    ],[
-      curl_cv_header_wincrypt_h="yes"
-    ],[
-      curl_cv_header_wincrypt_h="no"
-    ])
-  ])
-  case "$curl_cv_header_wincrypt_h" in
-    yes)
-      AC_DEFINE_UNQUOTED(HAVE_WINCRYPT_H, 1,
-        [Define to 1 if you have the wincrypt.h header file.])
-      ;;
-  esac
-])
-
-
-dnl CURL_CHECK_HEADER_WINLDAP
-dnl -------------------------------------------------
-dnl Check for compilable and valid winldap.h header
-
-AC_DEFUN([CURL_CHECK_HEADER_WINLDAP], [
-  AC_REQUIRE([CURL_CHECK_HEADER_WINDOWS])dnl
-  AC_CACHE_CHECK([for winldap.h], [curl_cv_header_winldap_h], [
-    AC_COMPILE_IFELSE([
-      AC_LANG_PROGRAM([[
-#undef inline
-#ifdef HAVE_WINDOWS_H
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
-#include <winldap.h>
-      ]],[[
-#if defined(__CYGWIN__) || defined(__CEGCC__)
-        HAVE_WINLDAP_H shall not be defined.
-#else
-        LDAP *ldp = ldap_init("dummy", LDAP_PORT);
-        ULONG res = ldap_unbind(ldp);
-#endif
-      ]])
-    ],[
-      curl_cv_header_winldap_h="yes"
-    ],[
-      curl_cv_header_winldap_h="no"
-    ])
-  ])
-  case "$curl_cv_header_winldap_h" in
-    yes)
-      AC_DEFINE_UNQUOTED(HAVE_WINLDAP_H, 1,
-        [Define to 1 if you have the winldap.h header file.])
-      ;;
-  esac
-])
-
-
 dnl CURL_CHECK_HEADER_LBER
 dnl -------------------------------------------------
 dnl Check for compilable and valid lber.h header,
@@ -612,9 +539,7 @@ AC_DEFUN([CURL_CHECK_LIBS_WINLDAP], [
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#ifdef HAVE_WINLDAP_H
 #include <winldap.h>
-#endif
 #ifdef HAVE_WINBER_H
 #include <winber.h>
 #endif
@@ -1112,6 +1037,38 @@ AC_DEFUN([CURL_CHECK_FUNC_CLOCK_GETTIME_MONOTONIC], [
   fi
   dnl Definition of HAVE_CLOCK_GETTIME_MONOTONIC is intentionally postponed
   dnl until library linking and run-time checks for clock_gettime succeed.
+])
+
+dnl CURL_CHECK_FUNC_CLOCK_GETTIME_MONOTONIC_RAW
+dnl -------------------------------------------------
+dnl Check if monotonic clock_gettime is available.
+
+AC_DEFUN([CURL_CHECK_FUNC_CLOCK_GETTIME_MONOTONIC_RAW], [
+  AC_CHECK_HEADERS(sys/types.h sys/time.h)
+  AC_MSG_CHECKING([for raw monotonic clock_gettime])
+  #
+  if test "x$dontwant_rt" = "xno" ; then
+    AC_COMPILE_IFELSE([
+      AC_LANG_PROGRAM([[
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#include <time.h>
+      ]],[[
+        struct timespec ts;
+        (void)clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+      ]])
+    ],[
+      AC_MSG_RESULT([yes])
+      AC_DEFINE_UNQUOTED(HAVE_CLOCK_GETTIME_MONOTONIC_RAW, 1,
+        [Define to 1 if you have the clock_gettime function and raw monotonic timer.])
+    ],[
+      AC_MSG_RESULT([no])
+    ])
+  fi
 ])
 
 
@@ -1707,10 +1664,10 @@ dnl -------------------------------------------------
 dnl Check if curl's WIN32 crypto lib can be used
 
 AC_DEFUN([CURL_CHECK_WIN32_CRYPTO], [
-  AC_REQUIRE([CURL_CHECK_HEADER_WINCRYPT])dnl
+  AC_REQUIRE([CURL_CHECK_HEADER_WINDOWS])dnl
   AC_MSG_CHECKING([whether build target supports WIN32 crypto API])
   curl_win32_crypto_api="no"
-  if test "$curl_cv_header_wincrypt_h" = "yes"; then
+  if test "$curl_cv_header_windows_h" = "yes"; then
     AC_COMPILE_IFELSE([
       AC_LANG_PROGRAM([[
 #undef inline

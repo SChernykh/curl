@@ -103,8 +103,8 @@ endif
 ### Optional features
 
 ifneq ($(findstring -debug,$(CFG)),)
+  CFLAGS += -g
   CPPFLAGS += -DDEBUGBUILD
-  LDFLAGS += -g
 else
   CPPFLAGS += -DNDEBUG
 endif
@@ -239,7 +239,7 @@ ifeq ($(findstring -nghttp3,$(CFG))$(findstring -ngtcp2,$(CFG)),-nghttp3-ngtcp2)
       ifneq ($(wildcard $(OPENSSL_INCLUDE)/openssl/aead.h),)
         NGTCP2_LIBS := -lngtcp2_crypto_boringssl
       else  # including libressl
-        NGTCP2_LIBS := -lngtcp2_crypto_openssl
+        NGTCP2_LIBS := -lngtcp2_crypto_quictls
       endif
     else ifneq ($(findstring -wolfssl,$(CFG)),)
       NGTCP2_LIBS := -lngtcp2_crypto_wolfssl
@@ -309,9 +309,6 @@ ifneq ($(findstring -sspi,$(CFG)),)
 endif
 ifneq ($(findstring -ipv6,$(CFG)),)
   CPPFLAGS += -DENABLE_IPV6
-endif
-ifneq ($(findstring -ldaps,$(CFG)),)
-  CPPFLAGS += -DHAVE_LDAP_SSL
 endif
 
 ifneq ($(findstring -watt,$(CFG))$(MSDOS),)
@@ -391,6 +388,7 @@ ifdef WIN32
 CURL_DLL_SUFFIX ?=
 libcurl_dll_LIBRARY := libcurl$(CURL_DLL_SUFFIX).dll
 libcurl_dll_a_LIBRARY := libcurl.dll.a
+CURL_LDFLAGS_LIB += $(PROOT)/libcurl.def
 ifdef MAP
 libcurl_map_LIBRARY := libcurl$(CURL_DLL_SUFFIX).map
 CURL_LDFLAGS_LIB += -Wl,-Map,$(libcurl_map_LIBRARY)

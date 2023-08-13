@@ -33,13 +33,12 @@
 
 #ifdef USE_SCHANNEL
 
-#define EXPOSE_SCHANNEL_INTERNAL_STRUCTS
-
 #ifndef USE_WINDOWS_SSPI
 #  error "Can't compile SCHANNEL support without SSPI."
 #endif
 
 #include "schannel.h"
+#include "schannel_int.h"
 #include "vtls.h"
 #include "vtls_int.h"
 #include "strcase.h"
@@ -186,9 +185,9 @@
 #define PKCS12_NO_PERSIST_KEY 0x00008000
 #endif
 
-static CURLcode pkp_pin_peer_pubkey(struct Curl_cfilter *cf,
-                                    struct Curl_easy *data,
-                                    const char *pinnedpubkey);
+static CURLcode schannel_pkp_pin_peer_pubkey(struct Curl_cfilter *cf,
+                                             struct Curl_easy *data,
+                                             const char *pinnedpubkey);
 
 static void InitSecBuffer(SecBuffer *buffer, unsigned long BufType,
                           void *BufDataPtr, unsigned long BufByteSize)
@@ -207,9 +206,9 @@ static void InitSecBufferDesc(SecBufferDesc *desc, SecBuffer *BufArr,
 }
 
 static CURLcode
-set_ssl_version_min_max(DWORD *enabled_protocols,
-                        struct Curl_cfilter *cf,
-                        struct Curl_easy *data)
+schannel_set_ssl_version_min_max(DWORD *enabled_protocols,
+                                 struct Curl_cfilter *cf,
+                                 struct Curl_easy *data)
 {
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   long ssl_version = conn_config->version;
@@ -264,128 +263,133 @@ set_ssl_version_min_max(DWORD *enabled_protocols,
 
 /* longest is 26, buffer is slightly bigger */
 #define LONGEST_ALG_ID 32
-#define CIPHEROPTION(X)                         \
-  if(strcmp(#X, tmp) == 0)                      \
-    return X
+#define CIPHEROPTION(x) {#x, x}
+
+struct algo {
+  const char *name;
+  int id;
+};
+
+static const struct algo algs[]= {
+  CIPHEROPTION(CALG_MD2),
+  CIPHEROPTION(CALG_MD4),
+  CIPHEROPTION(CALG_MD5),
+  CIPHEROPTION(CALG_SHA),
+  CIPHEROPTION(CALG_SHA1),
+  CIPHEROPTION(CALG_MAC),
+  CIPHEROPTION(CALG_RSA_SIGN),
+  CIPHEROPTION(CALG_DSS_SIGN),
+/* ifdefs for the options that are defined conditionally in wincrypt.h */
+#ifdef CALG_NO_SIGN
+  CIPHEROPTION(CALG_NO_SIGN),
+#endif
+  CIPHEROPTION(CALG_RSA_KEYX),
+  CIPHEROPTION(CALG_DES),
+#ifdef CALG_3DES_112
+  CIPHEROPTION(CALG_3DES_112),
+#endif
+  CIPHEROPTION(CALG_3DES),
+  CIPHEROPTION(CALG_DESX),
+  CIPHEROPTION(CALG_RC2),
+  CIPHEROPTION(CALG_RC4),
+  CIPHEROPTION(CALG_SEAL),
+#ifdef CALG_DH_SF
+  CIPHEROPTION(CALG_DH_SF),
+#endif
+  CIPHEROPTION(CALG_DH_EPHEM),
+#ifdef CALG_AGREEDKEY_ANY
+  CIPHEROPTION(CALG_AGREEDKEY_ANY),
+#endif
+#ifdef CALG_HUGHES_MD5
+  CIPHEROPTION(CALG_HUGHES_MD5),
+#endif
+  CIPHEROPTION(CALG_SKIPJACK),
+#ifdef CALG_TEK
+  CIPHEROPTION(CALG_TEK),
+#endif
+  CIPHEROPTION(CALG_CYLINK_MEK),
+  CIPHEROPTION(CALG_SSL3_SHAMD5),
+#ifdef CALG_SSL3_MASTER
+  CIPHEROPTION(CALG_SSL3_MASTER),
+#endif
+#ifdef CALG_SCHANNEL_MASTER_HASH
+  CIPHEROPTION(CALG_SCHANNEL_MASTER_HASH),
+#endif
+#ifdef CALG_SCHANNEL_MAC_KEY
+  CIPHEROPTION(CALG_SCHANNEL_MAC_KEY),
+#endif
+#ifdef CALG_SCHANNEL_ENC_KEY
+  CIPHEROPTION(CALG_SCHANNEL_ENC_KEY),
+#endif
+#ifdef CALG_PCT1_MASTER
+  CIPHEROPTION(CALG_PCT1_MASTER),
+#endif
+#ifdef CALG_SSL2_MASTER
+  CIPHEROPTION(CALG_SSL2_MASTER),
+#endif
+#ifdef CALG_TLS1_MASTER
+  CIPHEROPTION(CALG_TLS1_MASTER),
+#endif
+#ifdef CALG_RC5
+  CIPHEROPTION(CALG_RC5),
+#endif
+#ifdef CALG_HMAC
+  CIPHEROPTION(CALG_HMAC),
+#endif
+#ifdef CALG_TLS1PRF
+  CIPHEROPTION(CALG_TLS1PRF),
+#endif
+#ifdef CALG_HASH_REPLACE_OWF
+  CIPHEROPTION(CALG_HASH_REPLACE_OWF),
+#endif
+#ifdef CALG_AES_128
+  CIPHEROPTION(CALG_AES_128),
+#endif
+#ifdef CALG_AES_192
+  CIPHEROPTION(CALG_AES_192),
+#endif
+#ifdef CALG_AES_256
+  CIPHEROPTION(CALG_AES_256),
+#endif
+#ifdef CALG_AES
+  CIPHEROPTION(CALG_AES),
+#endif
+#ifdef CALG_SHA_256
+  CIPHEROPTION(CALG_SHA_256),
+#endif
+#ifdef CALG_SHA_384
+  CIPHEROPTION(CALG_SHA_384),
+#endif
+#ifdef CALG_SHA_512
+  CIPHEROPTION(CALG_SHA_512),
+#endif
+#ifdef CALG_ECDH
+  CIPHEROPTION(CALG_ECDH),
+#endif
+#ifdef CALG_ECMQV
+  CIPHEROPTION(CALG_ECMQV),
+#endif
+#ifdef CALG_ECDSA
+  CIPHEROPTION(CALG_ECDSA),
+#endif
+#ifdef CALG_ECDH_EPHEM
+  CIPHEROPTION(CALG_ECDH_EPHEM),
+#endif
+  {NULL, 0},
+};
 
 static int
 get_alg_id_by_name(char *name)
 {
-  char tmp[LONGEST_ALG_ID] = { 0 };
   char *nameEnd = strchr(name, ':');
   size_t n = nameEnd ? (size_t)(nameEnd - name) : strlen(name);
+  int i;
 
-  /* reject too-long alg names */
-  if(n > (LONGEST_ALG_ID - 1))
-    return 0;
-
-  strncpy(tmp, name, n);
-  tmp[n] = 0;
-  CIPHEROPTION(CALG_MD2);
-  CIPHEROPTION(CALG_MD4);
-  CIPHEROPTION(CALG_MD5);
-  CIPHEROPTION(CALG_SHA);
-  CIPHEROPTION(CALG_SHA1);
-  CIPHEROPTION(CALG_MAC);
-  CIPHEROPTION(CALG_RSA_SIGN);
-  CIPHEROPTION(CALG_DSS_SIGN);
-/* ifdefs for the options that are defined conditionally in wincrypt.h */
-#ifdef CALG_NO_SIGN
-  CIPHEROPTION(CALG_NO_SIGN);
-#endif
-  CIPHEROPTION(CALG_RSA_KEYX);
-  CIPHEROPTION(CALG_DES);
-#ifdef CALG_3DES_112
-  CIPHEROPTION(CALG_3DES_112);
-#endif
-  CIPHEROPTION(CALG_3DES);
-  CIPHEROPTION(CALG_DESX);
-  CIPHEROPTION(CALG_RC2);
-  CIPHEROPTION(CALG_RC4);
-  CIPHEROPTION(CALG_SEAL);
-#ifdef CALG_DH_SF
-  CIPHEROPTION(CALG_DH_SF);
-#endif
-  CIPHEROPTION(CALG_DH_EPHEM);
-#ifdef CALG_AGREEDKEY_ANY
-  CIPHEROPTION(CALG_AGREEDKEY_ANY);
-#endif
-#ifdef CALG_HUGHES_MD5
-  CIPHEROPTION(CALG_HUGHES_MD5);
-#endif
-  CIPHEROPTION(CALG_SKIPJACK);
-#ifdef CALG_TEK
-  CIPHEROPTION(CALG_TEK);
-#endif
-  CIPHEROPTION(CALG_CYLINK_MEK);
-  CIPHEROPTION(CALG_SSL3_SHAMD5);
-#ifdef CALG_SSL3_MASTER
-  CIPHEROPTION(CALG_SSL3_MASTER);
-#endif
-#ifdef CALG_SCHANNEL_MASTER_HASH
-  CIPHEROPTION(CALG_SCHANNEL_MASTER_HASH);
-#endif
-#ifdef CALG_SCHANNEL_MAC_KEY
-  CIPHEROPTION(CALG_SCHANNEL_MAC_KEY);
-#endif
-#ifdef CALG_SCHANNEL_ENC_KEY
-  CIPHEROPTION(CALG_SCHANNEL_ENC_KEY);
-#endif
-#ifdef CALG_PCT1_MASTER
-  CIPHEROPTION(CALG_PCT1_MASTER);
-#endif
-#ifdef CALG_SSL2_MASTER
-  CIPHEROPTION(CALG_SSL2_MASTER);
-#endif
-#ifdef CALG_TLS1_MASTER
-  CIPHEROPTION(CALG_TLS1_MASTER);
-#endif
-#ifdef CALG_RC5
-  CIPHEROPTION(CALG_RC5);
-#endif
-#ifdef CALG_HMAC
-  CIPHEROPTION(CALG_HMAC);
-#endif
-#ifdef CALG_TLS1PRF
-  CIPHEROPTION(CALG_TLS1PRF);
-#endif
-#ifdef CALG_HASH_REPLACE_OWF
-  CIPHEROPTION(CALG_HASH_REPLACE_OWF);
-#endif
-#ifdef CALG_AES_128
-  CIPHEROPTION(CALG_AES_128);
-#endif
-#ifdef CALG_AES_192
-  CIPHEROPTION(CALG_AES_192);
-#endif
-#ifdef CALG_AES_256
-  CIPHEROPTION(CALG_AES_256);
-#endif
-#ifdef CALG_AES
-  CIPHEROPTION(CALG_AES);
-#endif
-#ifdef CALG_SHA_256
-  CIPHEROPTION(CALG_SHA_256);
-#endif
-#ifdef CALG_SHA_384
-  CIPHEROPTION(CALG_SHA_384);
-#endif
-#ifdef CALG_SHA_512
-  CIPHEROPTION(CALG_SHA_512);
-#endif
-#ifdef CALG_ECDH
-  CIPHEROPTION(CALG_ECDH);
-#endif
-#ifdef CALG_ECMQV
-  CIPHEROPTION(CALG_ECMQV);
-#endif
-#ifdef CALG_ECDSA
-  CIPHEROPTION(CALG_ECDSA);
-#endif
-#ifdef CALG_ECDH_EPHEM
-  CIPHEROPTION(CALG_ECDH_EPHEM);
-#endif
-  return 0;
+  for(i = 0; algs[i].name; i++) {
+    if((n == strlen(algs[i].name) && !strncmp(algs[i].name, name, n)))
+      return algs[i].id;
+  }
+  return 0; /* not found */
 }
 
 #define NUM_CIPHERS 47 /* There are 47 options listed above */
@@ -495,7 +499,8 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
   DWORD flags = 0;
   DWORD enabled_protocols = 0;
 
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)(connssl->backend);
 
   DEBUGASSERT(backend);
 
@@ -558,7 +563,7 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
   case CURL_SSLVERSION_TLSv1_2:
   case CURL_SSLVERSION_TLSv1_3:
   {
-    result = set_ssl_version_min_max(&enabled_protocols, cf, data);
+    result = schannel_set_ssl_version_min_max(&enabled_protocols, cf, data);
     if(result != CURLE_OK)
       return result;
     break;
@@ -788,8 +793,11 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
   backend->cred->client_cert_store = client_cert_store;
 #endif
 
-  /* Windows 10, 1809 (a.k.a. Windows 10 build 17763) */
-  if(curlx_verify_windows_version(10, 0, 17763, PLATFORM_WINNT,
+  /* We support TLS 1.3 starting in Windows 10 version 1809 (OS build 17763) as
+     long as the user did not set a legacy algorithm list
+     (CURLOPT_SSL_CIPHER_LIST). */
+  if(!conn_config->cipher_list &&
+     curlx_verify_windows_version(10, 0, 17763, PLATFORM_WINNT,
                                   VERSION_GREATER_THAN_EQUAL)) {
 
     char *ciphers13 = 0;
@@ -802,9 +810,9 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
 
     SCH_CREDENTIALS credentials = { 0 };
     TLS_PARAMETERS tls_parameters = { 0 };
-    CRYPTO_SETTINGS crypto_settings[4] = { 0 };
-    UNICODE_STRING blocked_ccm_modes[1] = { 0 };
-    UNICODE_STRING blocked_gcm_modes[1] = { 0 };
+    CRYPTO_SETTINGS crypto_settings[4] = { { 0 } };
+    UNICODE_STRING blocked_ccm_modes[1] = { { 0 } };
+    UNICODE_STRING blocked_gcm_modes[1] = { { 0 } };
 
     int crypto_settings_idx = 0;
 
@@ -839,7 +847,7 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
 
         /* reject too-long cipher names */
         if(n > (LONGEST_ALG_ID - 1)) {
-          failf(data, "Cipher name too long, not checked.");
+          failf(data, "schannel: Cipher name too long, not checked");
           return CURLE_SSL_CIPHER;
         }
 
@@ -867,7 +875,7 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
           disable_aes_ccm_sha256 = FALSE;
         }
         else {
-          failf(data, "Passed in an unknown TLS 1.3 cipher.");
+          failf(data, "schannel: Unknown TLS 1.3 cipher: %s", tmp);
           return CURLE_SSL_CIPHER;
         }
 
@@ -882,7 +890,7 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
     if(disable_aes_gcm_sha384 && disable_aes_gcm_sha256
        && disable_chacha_poly && disable_aes_ccm_8_sha256
        && disable_aes_ccm_sha256) {
-      failf(data, "All available TLS 1.3 ciphers were disabled.");
+      failf(data, "schannel: All available TLS 1.3 ciphers were disabled");
       return CURLE_SSL_CIPHER;
     }
 
@@ -1005,7 +1013,9 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
                                          &backend->cred->time_stamp);
   }
   else {
-    /* Pre-Windows 10 1809 */
+    /* Pre-Windows 10 1809 or the user set a legacy algorithm list. Although MS
+       doesn't document it, currently Schannel will not negotiate TLS 1.3 when
+       SCHANNEL_CRED is used. */
     ALG_ID algIds[NUM_CIPHERS];
     char *ciphers = conn_config->cipher_list;
     SCHANNEL_CRED schannel_cred = { 0 };
@@ -1014,9 +1024,20 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
     schannel_cred.grbitEnabledProtocols = enabled_protocols;
 
     if(ciphers) {
+      if((enabled_protocols & SP_PROT_TLS1_3_CLIENT)) {
+        infof(data, "schannel: WARNING: This version of Schannel may "
+              "negotiate a less-secure TLS version than TLS 1.3 because the "
+              "user set an algorithm cipher list.");
+      }
+      if(conn_config->cipher_list13) {
+        failf(data, "schannel: This version of Schannel does not support "
+              "setting an algorithm cipher list and TLS 1.3 cipher list at "
+              "the same time");
+        return CURLE_SSL_CIPHER;
+      }
       result = set_ssl_ciphers(&schannel_cred, ciphers, algIds);
       if(CURLE_OK != result) {
-        failf(data, "Unable to set ciphers to from connection ssl config");
+        failf(data, "schannel: Failed setting algorithm cipher list");
         return result;
       }
     }
@@ -1070,7 +1091,8 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   ssize_t written = -1;
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   SecBuffer outbuf;
@@ -1166,9 +1188,11 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
   if(!backend->cred) {
     char *snihost;
     result = schannel_acquire_credential_handle(cf, data);
-    if(result != CURLE_OK) {
+    if(result)
       return result;
-    }
+    /* schannel_acquire_credential_handle() sets backend->cred accordingly or
+       it returns error otherwise. */
+
     /* A hostname associated with the credential is needed by
        InitializeSecurityContext for SNI and other reasons. */
     snihost = Curl_ssl_snihost(data, hostname, NULL);
@@ -1201,18 +1225,18 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
     /* The first four bytes will be an unsigned int indicating number
        of bytes of data in the rest of the buffer. */
     extension_len = (unsigned int *)(void *)(&alpn_buffer[cur]);
-    cur += sizeof(unsigned int);
+    cur += (int)sizeof(unsigned int);
 
     /* The next four bytes are an indicator that this buffer will contain
        ALPN data, as opposed to NPN, for example. */
     *(unsigned int *)(void *)&alpn_buffer[cur] =
       SecApplicationProtocolNegotiationExt_ALPN;
-    cur += sizeof(unsigned int);
+    cur += (int)sizeof(unsigned int);
 
     /* The next two bytes will be an unsigned short indicating the number
        of bytes used to list the preferred protocols. */
     list_len = (unsigned short*)(void *)(&alpn_buffer[cur]);
-    cur += sizeof(unsigned short);
+    cur += (int)sizeof(unsigned short);
 
     list_start_index = cur;
 
@@ -1225,7 +1249,9 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
     cur += proto.len;
 
     *list_len = curlx_uitous(cur - list_start_index);
-    *extension_len = *list_len + sizeof(unsigned int) + sizeof(unsigned short);
+    *extension_len = *list_len +
+      (unsigned short)sizeof(unsigned int) +
+      (unsigned short)sizeof(unsigned short);
 
     InitSecBuffer(&inbuf, SECBUFFER_APPLICATION_PROTOCOLS, alpn_buffer, cur);
     InitSecBufferDesc(&inbuf_desc, &inbuf, 1);
@@ -1340,7 +1366,8 @@ static CURLcode
 schannel_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   int i;
   ssize_t nread = -1, written = -1;
@@ -1598,7 +1625,7 @@ schannel_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
     data->set.str[STRING_SSL_PINNEDPUBLICKEY_PROXY]:
     data->set.str[STRING_SSL_PINNEDPUBLICKEY];
   if(pubkey_ptr) {
-    result = pkp_pin_peer_pubkey(cf, data, pubkey_ptr);
+    result = schannel_pkp_pin_peer_pubkey(cf, data, pubkey_ptr);
     if(result) {
       failf(data, "SSL: public key does not match pinned public key");
       return result;
@@ -1607,9 +1634,15 @@ schannel_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
 
 #ifdef HAS_MANUAL_VERIFY_API
   if(conn_config->verifypeer && backend->use_manual_cred_validation) {
+    /* Certificate verification also verifies the hostname if verifyhost */
     return Curl_verify_certificate(cf, data);
   }
 #endif
+
+  /* Verify the hostname manually when certificate verification is disabled,
+     because in that case Schannel won't verify it. */
+  if(!conn_config->verifypeer && conn_config->verifyhost)
+    return Curl_verify_host(cf, data);
 
   return CURLE_OK;
 }
@@ -1654,7 +1687,6 @@ struct Adder_args
   struct Curl_easy *data;
   CURLcode result;
   int idx;
-  int certs_count;
 };
 
 static bool
@@ -1665,10 +1697,7 @@ add_cert_to_certinfo(const CERT_CONTEXT *ccert_context, void *raw_arg)
   if(valid_cert_encoding(ccert_context)) {
     const char *beg = (const char *) ccert_context->pbCertEncoded;
     const char *end = beg + ccert_context->cbCertEncoded;
-    int insert_index = (args->certs_count - 1) - args->idx;
-    args->result = Curl_extract_certinfo(args->data, insert_index,
-                                         beg, end);
-    args->idx++;
+    args->result = Curl_extract_certinfo(args->data, (args->idx)++, beg, end);
   }
   return args->result == CURLE_OK;
 }
@@ -1677,7 +1706,8 @@ static CURLcode
 schannel_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
   struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   CURLcode result = CURLE_OK;
   SECURITY_STATUS sspi_status = SEC_E_OK;
@@ -1801,7 +1831,6 @@ schannel_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
       struct Adder_args args;
       args.data = data;
       args.idx = 0;
-      args.certs_count = certs_count;
       traverse_cert_store(ccert_context, add_cert_to_certinfo, &args);
       result = args.result;
     }
@@ -1922,7 +1951,8 @@ schannel_connect_common(struct Curl_cfilter *cf,
      * Available on Windows 7 or later.
      */
     {
-      struct ssl_backend_data *backend = connssl->backend;
+      struct schannel_ssl_backend_data *backend =
+        (struct schannel_ssl_backend_data *)connssl->backend;
       DEBUGASSERT(backend);
       cf->conn->sslContext = &backend->ctxt->ctxt_handle;
     }
@@ -1951,7 +1981,8 @@ schannel_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   SecBufferDesc outbuf_desc;
   SECURITY_STATUS sspi_status = SEC_E_OK;
   CURLcode result;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
 
   DEBUGASSERT(backend);
 
@@ -2101,7 +2132,8 @@ schannel_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   /* we want the length of the encrypted buffer to be at least large enough
      that it can hold all the bytes requested and some TLS record overhead. */
   size_t min_encdata_length = len + CURL_SCHANNEL_BUFFER_FREE_SIZE;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
 
   DEBUGASSERT(backend);
 
@@ -2349,7 +2381,7 @@ schannel_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
                "schannel: decrypted data buffer: offset %zu length %zu",
                backend->decdata_offset, backend->decdata_length));
 
-  cleanup:
+cleanup:
   /* Warning- there is no guarantee the encdata state is valid at this point */
   DEBUGF(infof(data, "schannel: schannel_recv cleanup"));
 
@@ -2434,12 +2466,13 @@ static bool schannel_data_pending(struct Curl_cfilter *cf,
                                   const struct Curl_easy *data)
 {
   const struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
 
   (void)data;
   DEBUGASSERT(backend);
 
-  if(connssl->backend->ctxt) /* SSL/TLS is in use */
+  if(backend->ctxt) /* SSL/TLS is in use */
     return (backend->decdata_offset > 0 ||
             (backend->encdata_offset > 0 && !backend->encdata_is_incomplete));
   else
@@ -2477,12 +2510,13 @@ static int schannel_shutdown(struct Curl_cfilter *cf,
    * Shutting Down an Schannel Connection
    */
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
 
   DEBUGASSERT(data);
   DEBUGASSERT(backend);
 
-  if(connssl->backend->ctxt) {
+  if(backend->ctxt) {
     infof(data, "schannel: shutting down SSL/TLS connection with %s port %d",
           connssl->hostname, connssl->port);
   }
@@ -2602,12 +2636,13 @@ static CURLcode schannel_random(struct Curl_easy *data UNUSED_PARAM,
   return Curl_win32_random(entropy, length);
 }
 
-static CURLcode pkp_pin_peer_pubkey(struct Curl_cfilter *cf,
-                                    struct Curl_easy *data,
-                                    const char *pinnedpubkey)
+static CURLcode schannel_pkp_pin_peer_pubkey(struct Curl_cfilter *cf,
+                                             struct Curl_easy *data,
+                                             const char *pinnedpubkey)
 {
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
   CERT_CONTEXT *pCertContextServer = NULL;
 
   /* Result is returned to caller */
@@ -2733,7 +2768,8 @@ static CURLcode schannel_sha256sum(const unsigned char *input,
 static void *schannel_get_internals(struct ssl_connect_data *connssl,
                                     CURLINFO info UNUSED_PARAM)
 {
-  struct ssl_backend_data *backend = connssl->backend;
+  struct schannel_ssl_backend_data *backend =
+    (struct schannel_ssl_backend_data *)connssl->backend;
   (void)info;
   DEBUGASSERT(backend);
   return &backend->ctxt->ctxt_handle;
@@ -2750,7 +2786,7 @@ const struct Curl_ssl Curl_ssl_schannel = {
   SSLSUPP_TLS13_CIPHERSUITES |
   SSLSUPP_HTTPS_PROXY,
 
-  sizeof(struct ssl_backend_data),
+  sizeof(struct schannel_ssl_backend_data),
 
   schannel_init,                     /* init */
   schannel_cleanup,                  /* cleanup */

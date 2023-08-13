@@ -91,9 +91,10 @@
 #undef USE_BIO_CHAIN
 #endif
 
-struct ssl_backend_data {
+struct wolfssl_ssl_backend_data {
   SSL_CTX* ctx;
   SSL*     handle;
+  CURLcode io_result;       /* result of last BIO cfilter operation */
 };
 
 #ifdef OPENSSL_EXTRA
@@ -279,12 +280,18 @@ static long bio_cf_ctrl(WOLFSSL_BIO *bio, int cmd, long num, void *ptr)
 static int bio_cf_out_write(WOLFSSL_BIO *bio, const char *buf, int blen)
 {
   struct Curl_cfilter *cf = wolfSSL_BIO_get_data(bio);
+  struct ssl_connect_data *connssl = cf->ctx;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   struct Curl_easy *data = CF_DATA_CURRENT(cf);
   ssize_t nwritten;
   CURLcode result = CURLE_OK;
 
   DEBUGASSERT(data);
   nwritten = Curl_conn_cf_send(cf->next, data, buf, blen, &result);
+  backend->io_result = result;
+  CURL_TRC_CF(data, cf, "bio_write(len=%d) -> %zd, %d",
+              blen, nwritten, result);
   wolfSSL_BIO_clear_retry_flags(bio);
   if(nwritten < 0 && CURLE_AGAIN == result)
     BIO_set_retry_read(bio);
@@ -294,6 +301,9 @@ static int bio_cf_out_write(WOLFSSL_BIO *bio, const char *buf, int blen)
 static int bio_cf_in_read(WOLFSSL_BIO *bio, char *buf, int blen)
 {
   struct Curl_cfilter *cf = wolfSSL_BIO_get_data(bio);
+  struct ssl_connect_data *connssl = cf->ctx;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   struct Curl_easy *data = CF_DATA_CURRENT(cf);
   ssize_t nread;
   CURLcode result = CURLE_OK;
@@ -304,6 +314,8 @@ static int bio_cf_in_read(WOLFSSL_BIO *bio, char *buf, int blen)
     return 0;
 
   nread = Curl_conn_cf_recv(cf->next, data, buf, blen, &result);
+  backend->io_result = result;
+  CURL_TRC_CF(data, cf, "bio_read(len=%d) -> %zd, %d", blen, nread, result);
   wolfSSL_BIO_clear_retry_flags(bio);
   if(nread < 0 && CURLE_AGAIN == result)
     BIO_set_retry_read(bio);
@@ -343,8 +355,10 @@ wolfssl_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   char *ciphers, *curves;
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
+  const struct curl_blob *ca_info_blob = conn_config->ca_info_blob;
   const struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   SSL_METHOD* req_method = NULL;
 #ifdef HAVE_LIBOQS
@@ -357,6 +371,8 @@ wolfssl_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
 #else
 #define use_sni(x)  Curl_nop_stmt
 #endif
+  bool imported_native_ca = false;
+  bool imported_ca_info_blob = false;
 
   DEBUGASSERT(backend);
 
@@ -401,8 +417,13 @@ wolfssl_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
 #endif
     break;
   case CURL_SSLVERSION_TLSv1_2:
+#ifndef WOLFSSL_NO_TLS12
     req_method = TLSv1_2_client_method();
     use_sni(TRUE);
+#else
+    failf(data, "wolfSSL does not support TLS 1.2");
+    return CURLE_NOT_BUILT_IN;
+#endif
     break;
   case CURL_SSLVERSION_TLSv1_3:
 #ifdef WOLFSSL_TLS13
@@ -485,13 +506,48 @@ wolfssl_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
       }
     }
   }
+
+#ifndef NO_FILESYSTEM
+  /* load native CA certificates */
+  if(ssl_config->native_ca_store) {
+    if(wolfSSL_CTX_load_system_CA_certs(backend->ctx) != WOLFSSL_SUCCESS) {
+      infof(data, "error importing native CA store, continuing anyway");
+    }
+    else {
+      imported_native_ca = true;
+      infof(data, "successfully imported native CA store");
+    }
+  }
+#endif /* !NO_FILESYSTEM */
+
+  /* load certificate blob */
+  if(ca_info_blob) {
+    if(wolfSSL_CTX_load_verify_buffer(
+      backend->ctx, ca_info_blob->data, ca_info_blob->len,
+      SSL_FILETYPE_PEM
+    ) != SSL_SUCCESS) {
+      if(imported_native_ca) {
+        infof(data, "error importing CA certificate blob, continuing anyway");
+      }
+      else {
+        failf(data, "error importing CA certificate blob");
+        return CURLE_SSL_CACERT_BADFILE;
+      }
+    }
+    else {
+      imported_ca_info_blob = true;
+      infof(data, "successfully imported CA certificate blob");
+    }
+  }
+
 #ifndef NO_FILESYSTEM
   /* load trusted cacert */
   if(conn_config->CAfile) {
     if(1 != SSL_CTX_load_verify_locations(backend->ctx,
                                       conn_config->CAfile,
                                       conn_config->CApath)) {
-      if(conn_config->verifypeer) {
+      if(conn_config->verifypeer && !imported_ca_info_blob &&
+         !imported_native_ca) {
         /* Fail if we insist on successfully verifying the server. */
         failf(data, "error setting certificate verify locations:"
               " CAfile: %s CApath: %s",
@@ -690,7 +746,8 @@ wolfssl_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   int ret = -1;
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   const char * const pinnedpubkey = Curl_ssl_cf_is_proxy(cf)?
     data->set.str[STRING_SSL_PINNEDPUBLICKEY_PROXY]:
@@ -789,6 +846,9 @@ wolfssl_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
       }
     }
 #endif
+    else if(backend->io_result == CURLE_AGAIN) {
+      return CURLE_OK;
+    }
     else {
       failf(data, "SSL_connect failed with error %d: %s", detail,
           ERR_error_string(detail, error_buffer));
@@ -842,7 +902,7 @@ wolfssl_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
   }
 
 #ifdef HAVE_ALPN
-  if(cf->conn->bits.tls_enable_alpn) {
+  if(connssl->alpn) {
     int rc;
     char *protocol = NULL;
     unsigned short protocol_len = 0;
@@ -880,7 +940,8 @@ wolfssl_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   CURLcode result = CURLE_OK;
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   const struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
 
   DEBUGASSERT(ssl_connect_3 == connssl->connecting_state);
@@ -938,7 +999,8 @@ static ssize_t wolfssl_send(struct Curl_cfilter *cf,
                             CURLcode *curlcode)
 {
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   char error_buffer[WOLFSSL_MAX_ERROR_SZ];
   int memlen = (len > (size_t)INT_MAX) ? INT_MAX : (int)len;
   int rc;
@@ -948,7 +1010,6 @@ static ssize_t wolfssl_send(struct Curl_cfilter *cf,
   ERR_clear_error();
 
   rc = SSL_write(backend->handle, mem, memlen);
-
   if(rc <= 0) {
     int err = SSL_get_error(backend->handle, rc);
 
@@ -956,9 +1017,16 @@ static ssize_t wolfssl_send(struct Curl_cfilter *cf,
     case SSL_ERROR_WANT_READ:
     case SSL_ERROR_WANT_WRITE:
       /* there's data pending, re-invoke SSL_write() */
+      CURL_TRC_CF(data, cf, "wolfssl_send(len=%zu) -> AGAIN", len);
       *curlcode = CURLE_AGAIN;
       return -1;
     default:
+      if(backend->io_result == CURLE_AGAIN) {
+        CURL_TRC_CF(data, cf, "wolfssl_send(len=%zu) -> AGAIN", len);
+        *curlcode = CURLE_AGAIN;
+        return -1;
+      }
+      CURL_TRC_CF(data, cf, "wolfssl_send(len=%zu) -> %d, %d", len, rc, err);
       failf(data, "SSL write: %s, errno %d",
             ERR_error_string(err, error_buffer),
             SOCKERRNO);
@@ -966,13 +1034,15 @@ static ssize_t wolfssl_send(struct Curl_cfilter *cf,
       return -1;
     }
   }
+  CURL_TRC_CF(data, cf, "wolfssl_send(len=%zu) -> %d", len, rc);
   return rc;
 }
 
 static void wolfssl_close(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
 
   (void) data;
 
@@ -995,19 +1065,20 @@ static void wolfssl_close(struct Curl_cfilter *cf, struct Curl_easy *data)
 
 static ssize_t wolfssl_recv(struct Curl_cfilter *cf,
                             struct Curl_easy *data,
-                            char *buf,
-                            size_t buffersize,
+                            char *buf, size_t blen,
                             CURLcode *curlcode)
 {
   struct ssl_connect_data *connssl = cf->ctx;
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   char error_buffer[WOLFSSL_MAX_ERROR_SZ];
-  int buffsize = (buffersize > (size_t)INT_MAX) ? INT_MAX : (int)buffersize;
+  int buffsize = (blen > (size_t)INT_MAX) ? INT_MAX : (int)blen;
   int nread;
 
   DEBUGASSERT(backend);
 
   ERR_clear_error();
+  *curlcode = CURLE_OK;
 
   nread = SSL_read(backend->handle, buf, buffsize);
 
@@ -1016,22 +1087,31 @@ static ssize_t wolfssl_recv(struct Curl_cfilter *cf,
 
     switch(err) {
     case SSL_ERROR_ZERO_RETURN: /* no more data */
-      break;
+      CURL_TRC_CF(data, cf, "wolfssl_recv(len=%zu) -> CLOSED", blen);
+      *curlcode = CURLE_OK;
+      return 0;
     case SSL_ERROR_NONE:
       /* FALLTHROUGH */
     case SSL_ERROR_WANT_READ:
       /* FALLTHROUGH */
     case SSL_ERROR_WANT_WRITE:
       /* there's data pending, re-invoke SSL_read() */
+      CURL_TRC_CF(data, cf, "wolfssl_recv(len=%zu) -> AGAIN", blen);
       *curlcode = CURLE_AGAIN;
       return -1;
     default:
+      if(backend->io_result == CURLE_AGAIN) {
+        CURL_TRC_CF(data, cf, "wolfssl_recv(len=%zu) -> AGAIN", blen);
+        *curlcode = CURLE_AGAIN;
+        return -1;
+      }
       failf(data, "SSL read: %s, errno %d",
             ERR_error_string(err, error_buffer), SOCKERRNO);
       *curlcode = CURLE_RECV_ERROR;
       return -1;
     }
   }
+  CURL_TRC_CF(data, cf, "wolfssl_recv(len=%zu) -> %d", blen, nread);
   return nread;
 }
 
@@ -1079,11 +1159,14 @@ static bool wolfssl_data_pending(struct Curl_cfilter *cf,
                                  const struct Curl_easy *data)
 {
   struct ssl_connect_data *ctx = cf->ctx;
+  struct wolfssl_ssl_backend_data *backend;
 
   (void)data;
   DEBUGASSERT(ctx && ctx->backend);
-  if(ctx->backend->handle)   /* SSL is in use */
-    return (0 != SSL_pending(ctx->backend->handle)) ? TRUE : FALSE;
+
+  backend = (struct wolfssl_ssl_backend_data *)ctx->backend;
+  if(backend->handle)   /* SSL is in use */
+    return (0 != SSL_pending(backend->handle)) ? TRUE : FALSE;
   else
     return FALSE;
 }
@@ -1097,15 +1180,17 @@ static int wolfssl_shutdown(struct Curl_cfilter *cf,
                             struct Curl_easy *data)
 {
   struct ssl_connect_data *ctx = cf->ctx;
+  struct wolfssl_ssl_backend_data *backend;
   int retval = 0;
 
   (void)data;
   DEBUGASSERT(ctx && ctx->backend);
 
-  if(ctx->backend->handle) {
+  backend = (struct wolfssl_ssl_backend_data *)ctx->backend;
+  if(backend->handle) {
     ERR_clear_error();
-    SSL_free(ctx->backend->handle);
-    ctx->backend->handle = NULL;
+    SSL_free(backend->handle);
+    backend->handle = NULL;
   }
   return retval;
 }
@@ -1267,7 +1352,8 @@ static CURLcode wolfssl_sha256sum(const unsigned char *tmp, /* input */
 {
   wc_Sha256 SHA256pw;
   (void)unused;
-  wc_InitSha256(&SHA256pw);
+  if(wc_InitSha256(&SHA256pw))
+    return CURLE_FAILED_INIT;
   wc_Sha256Update(&SHA256pw, tmp, (word32)tmplen);
   wc_Sha256Final(&SHA256pw, sha256sum);
   return CURLE_OK;
@@ -1276,7 +1362,8 @@ static CURLcode wolfssl_sha256sum(const unsigned char *tmp, /* input */
 static void *wolfssl_get_internals(struct ssl_connect_data *connssl,
                                    CURLINFO info UNUSED_PARAM)
 {
-  struct ssl_backend_data *backend = connssl->backend;
+  struct wolfssl_ssl_backend_data *backend =
+    (struct wolfssl_ssl_backend_data *)connssl->backend;
   (void)info;
   DEBUGASSERT(backend);
   return backend->handle;
@@ -1291,9 +1378,10 @@ const struct Curl_ssl Curl_ssl_wolfssl = {
 #ifdef USE_BIO_CHAIN
   SSLSUPP_HTTPS_PROXY |
 #endif
+  SSLSUPP_CAINFO_BLOB |
   SSLSUPP_SSL_CTX,
 
-  sizeof(struct ssl_backend_data),
+  sizeof(struct wolfssl_ssl_backend_data),
 
   wolfssl_init,                    /* init */
   wolfssl_cleanup,                 /* cleanup */
