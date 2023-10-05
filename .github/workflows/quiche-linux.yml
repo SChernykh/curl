@@ -47,9 +47,9 @@ permissions: {}
 env:
   MAKEFLAGS: -j 3
   openssl-version: 3.0.10+quic
-  nghttp3-version: v0.14.0
-  ngtcp2-version: v0.18.0
-  nghttp2-version: v1.55.1
+  nghttp3-version: v0.15.0
+  ngtcp2-version: v0.19.1
+  nghttp2-version: v1.56.0
   quiche-version: 0.17.2
   mod_h2-version: v2.0.21
 
@@ -72,6 +72,7 @@ jobs:
             --enable-debug
             --with-quiche=/home/runner/quiche/target/release
             --with-test-nghttpx="$HOME/nghttpx/bin/nghttpx"
+            --with-ca-fallback
 
     steps:
     - run: |
@@ -176,7 +177,7 @@ jobs:
         sudo make install
       name: 'install mod_h2'
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - run: |
         sudo python3 -m pip install -r tests/requirements.txt -r tests/http/requirements.txt
@@ -202,7 +203,8 @@ jobs:
       env:
         TFLAGS: "${{ matrix.build.tflags }}"
 
-    - run: pytest -v tests/http
+    - run: pytest -v tests
       name: 'run pytest'
       env:
         TFLAGS: "${{ matrix.build.tflags }}"
+        CURL_CI: github

@@ -198,15 +198,8 @@ CURLcode Curl_http_auth_act(struct Curl_easy *data);
  * HTTP unique setup
  ***************************************************************************/
 struct HTTP {
-  curl_mimepart *sendit;
   curl_off_t postsize; /* off_t to handle large file sizes */
   const char *postdata;
-
-  const char *p_pragma;      /* Pragma: string */
-
-  /* For FORM posting */
-  curl_mimepart form;
-
   struct back {
     curl_read_callback fread_func; /* backup storage for fread pointer */
     void *fread_in;           /* backup storage for fread_in pointer */
@@ -301,7 +294,7 @@ void Curl_http_req_free(struct httpreq *req);
 
 /**
  * Create the list of HTTP/2 headers which represent the request,
- * using HTTP/2 pseudo headers preceeding the `req->headers`.
+ * using HTTP/2 pseudo headers preceding the `req->headers`.
  *
  * Applies the following transformations:
  * - if `authority` is set, any "Host" header is removed.

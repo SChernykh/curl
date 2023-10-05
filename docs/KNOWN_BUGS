@@ -50,7 +50,6 @@ problems may have been fixed or changed somewhat since this was written.
  6.1 NTLM authentication and unicode
  6.2 MIT Kerberos for Windows build
  6.3 NTLM in system context uses wrong name
- 6.4 Negotiate and Kerberos V5 need a fake user name
  6.5 NTLM does not support password with § character
  6.6 libcurl can fail to try alternatives with --proxy-any
  6.7 Do not clear digest for single realm
@@ -85,6 +84,7 @@ problems may have been fixed or changed somewhat since this was written.
  12.1 OpenLDAP hangs after returning results
  12.2 LDAP on Windows does authentication wrong?
  12.3 LDAP on Windows does not work
+ 12.4 LDAPS requests to ActiveDirectory server hang
 
  13. TCP/IP
  13.2 Trying local ports fails on Windows
@@ -101,8 +101,8 @@ problems may have been fixed or changed somewhat since this was written.
  15.13 CMake build with MIT Kerberos does not work
 
  16. aws-sigv4
- 16.1 aws-sigv4 doesn't sign requests with * correctly
- 16.2 aws-sigv4 doesn't sign requests with valueless queries correctly
+ 16.1 aws-sigv4 does not sign requests with * correctly
+ 16.2 aws-sigv4 does not sign requests with valueless queries correctly
  16.3 aws-sigv4 is missing the amz-content-sha256 header
  16.4 aws-sigv4 does not sort query string parameters before signing
  16.5 aws-sigv4 does not sign requests with empty URL query correctly
@@ -118,12 +118,6 @@ problems may have been fixed or changed somewhat since this was written.
 ==============================================================================
 
 1. HTTP
-
-1.1 hyper memory-leaks
-
- Building curl with the hyper backend causes mysterious memory-leaks
-
- https://github.com/curl/curl/issues/10803
 
 1.2 hyper is slow
 
@@ -317,18 +311,6 @@ problems may have been fixed or changed somewhat since this was written.
  "system context" will make it use wrong(?) user name - at least when compared
  to what winhttp does. See https://curl.se/bug/view.cgi?id=535
 
-6.4 Negotiate and Kerberos V5 need a fake user name
-
- In order to get Negotiate (SPNEGO) authentication to work in HTTP or Kerberos
- V5 in the email protocols, you need to  provide a (fake) user name (this
- concerns both curl and the lib) because the code wrongly only considers
- authentication if there's a user name provided by setting
- conn->bits.user_passwd in url.c  https://curl.se/bug/view.cgi?id=440 How?
- https://curl.se/mail/lib-2004-08/0182.html A possible solution is to
- either modify this variable to be set or introduce a variable such as
- new conn->bits.want_authentication which is set when any of the authentication
- options are set.
-
 6.5 NTLM does not support password with § character
 
  https://github.com/curl/curl/issues/2120
@@ -520,12 +502,16 @@ problems may have been fixed or changed somewhat since this was written.
 
  https://github.com/curl/curl/issues/4261
 
+12.4 LDAPS requests to ActiveDirectory server hang
+
+ https://github.com/curl/curl/issues/9580
+
 13. TCP/IP
 
 13.2 Trying local ports fails on Windows
 
- This makes '--local-port [range]' to not work since curl can't properly
- detect if a port is already in use, so it'll try the first port, use that and
+ This makes '--local-port [range]' to not work since curl cannot properly
+ detect if a port is already in use, so it will try the first port, use that and
  then subsequently fail anyway if that was actually in use.
 
  https://github.com/curl/curl/issues/8112
@@ -589,11 +575,11 @@ problems may have been fixed or changed somewhat since this was written.
 
 16. aws-sigv4
 
-16.1 aws-sigv4 doesn't sign requests with * correctly
+16.1 aws-sigv4 does not sign requests with * correctly
 
  https://github.com/curl/curl/issues/7559
 
-16.2 aws-sigv4 doesn't sign requests with valueless queries correctly
+16.2 aws-sigv4 does not sign requests with valueless queries correctly
 
  https://github.com/curl/curl/issues/8107
 

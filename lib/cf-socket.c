@@ -71,6 +71,7 @@
 #include "warnless.h"
 #include "conncache.h"
 #include "multihandle.h"
+#include "rand.h"
 #include "share.h"
 #include "version_win32.h"
 
@@ -390,6 +391,7 @@ void Curl_sndbufset(curl_socket_t sockfd)
 }
 #endif
 
+#ifndef CURL_DISABLE_BINDLOCAL
 static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
                           curl_socket_t sockfd, int af, unsigned int scope)
 {
@@ -628,7 +630,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
       if(port == 0)
         break;
       infof(data, "Bind to local port %d failed, trying next", port - 1);
-      /* We re-use/clobber the port variable here below */
+      /* We reuse/clobber the port variable here below */
       if(sock->sa_family == AF_INET)
         si4->sin_port = ntohs(port);
 #ifdef ENABLE_IPV6
@@ -648,6 +650,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
 
   return CURLE_INTERFACE_FAILED;
 }
+#endif
 
 /*
  * verifyconnect() returns TRUE if the connect really has happened.
@@ -722,8 +725,6 @@ static bool verifyconnect(curl_socket_t sockfd, int *error)
 static CURLcode socket_connect_result(struct Curl_easy *data,
                                       const char *ipaddress, int error)
 {
-  char buffer[STRERROR_LEN];
-
   switch(error) {
   case EINPROGRESS:
   case EWOULDBLOCK:
@@ -740,8 +741,15 @@ static CURLcode socket_connect_result(struct Curl_easy *data,
 
   default:
     /* unknown error, fallthrough and try another address! */
-    infof(data, "Immediate connect fail for %s: %s",
-          ipaddress, Curl_strerror(error, buffer, sizeof(buffer)));
+#ifdef CURL_DISABLE_VERBOSE_STRINGS
+    (void)ipaddress;
+#else
+    {
+      char buffer[STRERROR_LEN];
+      infof(data, "Immediate connect fail for %s: %s",
+            ipaddress, Curl_strerror(error, buffer, sizeof(buffer)));
+    }
+#endif
     data->state.os_errno = error;
     /* connect failed */
     return CURLE_COULDNT_CONNECT;
@@ -770,6 +778,10 @@ struct cf_socket_ctx {
   struct curltime connected_at;      /* when socket connected/got first byte */
   struct curltime first_byte_at;     /* when first byte was recvd */
   int error;                         /* errno of last failure or 0 */
+#ifdef DEBUGBUILD
+  int wblock_percent;                /* percent of writes doing EAGAIN */
+  int wpartial_percent;              /* percent of bytes written in send */
+#endif
   BIT(got_first_byte);               /* if first byte was received */
   BIT(accepted);                     /* socket was accepted, not connected */
   BIT(active);
@@ -785,6 +797,22 @@ static void cf_socket_ctx_init(struct cf_socket_ctx *ctx,
   ctx->transport = transport;
   Curl_sock_assign_addr(&ctx->addr, ai, transport);
   Curl_bufq_init(&ctx->recvbuf, NW_RECV_CHUNK_SIZE, NW_RECV_CHUNKS);
+#ifdef DEBUGBUILD
+  {
+    char *p = getenv("CURL_DBG_SOCK_WBLOCK");
+    if(p) {
+      long l = strtol(p, NULL, 10);
+      if(l >= 0 && l <= 100)
+        ctx->wblock_percent = (int)l;
+    }
+    p = getenv("CURL_DBG_SOCK_WPARTIAL");
+    if(p) {
+      long l = strtol(p, NULL, 10);
+      if(l >= 0 && l <= 100)
+        ctx->wpartial_percent = (int)l;
+    }
+  }
+#endif
 }
 
 struct reader_ctx {
@@ -952,7 +980,6 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
   bool isconnected = FALSE;
   CURLcode result = CURLE_COULDNT_CONNECT;
   bool is_tcp;
-  const char *ipmsg;
 
   (void)data;
   DEBUGASSERT(ctx->sock == CURL_SOCKET_BAD);
@@ -965,15 +992,20 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
   if(result)
     goto out;
 
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+  {
+    const char *ipmsg;
 #ifdef ENABLE_IPV6
-  if(ctx->addr.family == AF_INET6) {
-    set_ipv6_v6only(ctx->sock, 0);
-    ipmsg = "  Trying [%s]:%d...";
-  }
-  else
+    if(ctx->addr.family == AF_INET6) {
+      set_ipv6_v6only(ctx->sock, 0);
+      ipmsg = "  Trying [%s]:%d...";
+    }
+    else
 #endif
-    ipmsg = "  Trying %s:%d...";
-  infof(data, ipmsg, ctx->r_ip, ctx->r_port);
+      ipmsg = "  Trying %s:%d...";
+    infof(data, ipmsg, ctx->r_ip, ctx->r_port);
+  }
+#endif
 
 #ifdef ENABLE_IPV6
   is_tcp = (ctx->addr.family == AF_INET
@@ -1009,6 +1041,7 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
     }
   }
 
+#ifndef CURL_DISABLE_BINDLOCAL
   /* possibly bind the local end to an IP, interface or port */
   if(ctx->addr.family == AF_INET
 #ifdef ENABLE_IPV6
@@ -1026,6 +1059,7 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
       goto out;
     }
   }
+#endif
 
   /* set socket non-blocking */
   (void)curlx_nonblock(ctx->sock, TRUE);
@@ -1240,10 +1274,33 @@ static ssize_t cf_socket_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   struct cf_socket_ctx *ctx = cf->ctx;
   curl_socket_t fdsave;
   ssize_t nwritten;
+  size_t orig_len = len;
 
   *err = CURLE_OK;
   fdsave = cf->conn->sock[cf->sockindex];
   cf->conn->sock[cf->sockindex] = ctx->sock;
+
+#ifdef DEBUGBUILD
+  /* simulate network blocking/partial writes */
+  if(ctx->wblock_percent > 0) {
+    unsigned char c;
+    Curl_rand(data, &c, 1);
+    if(c >= ((100-ctx->wblock_percent)*256/100)) {
+      CURL_TRC_CF(data, cf, "send(len=%zu) SIMULATE EWOULDBLOCK", orig_len);
+      *err = CURLE_AGAIN;
+      nwritten = -1;
+      cf->conn->sock[cf->sockindex] = fdsave;
+      return nwritten;
+    }
+  }
+  if(cf->cft != &Curl_cft_udp && ctx->wpartial_percent > 0 && len > 8) {
+    len = len * ctx->wpartial_percent / 100;
+    if(!len)
+      len = 1;
+    CURL_TRC_CF(data, cf, "send(len=%zu) SIMULATE partial write of %zu bytes",
+                orig_len, len);
+  }
+#endif
 
 #if defined(MSG_FASTOPEN) && !defined(TCP_FASTOPEN_CONNECT) /* Linux */
   if(cf->conn->bits.tcp_fastopen) {
@@ -1284,7 +1341,7 @@ static ssize_t cf_socket_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   }
 
   CURL_TRC_CF(data, cf, "send(len=%zu) -> %d, err=%d",
-              len, (int)nwritten, *err);
+              orig_len, (int)nwritten, *err);
   cf->conn->sock[cf->sockindex] = fdsave;
   return nwritten;
 }
@@ -1917,4 +1974,3 @@ CURLcode Curl_cf_socket_peek(struct Curl_cfilter *cf,
   }
   return CURLE_FAILED_INIT;
 }
-

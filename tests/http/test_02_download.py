@@ -163,6 +163,8 @@ class TestDownload:
     @pytest.mark.parametrize("proto", ['http/1.1'])
     def test_02_07b_download_reuse(self, env: Env,
                                    httpd, nghttpx, repeat, proto):
+        if env.curl_uses_lib('wolfssl'):
+            pytest.skip("wolfssl session reuse borked")
         count = 6
         curl = CurlClient(env=env)
         urln = f'https://{env.authority_for(env.domain1, proto)}/data.json?[0-{count-1}]'
@@ -198,6 +200,8 @@ class TestDownload:
         ])
         r.check_response(count=count, http_status=200)
 
+    @pytest.mark.skipif(condition=Env().slow_network, reason="not suitable for slow network tests")
+    @pytest.mark.skipif(condition=Env().ci_run, reason="not suitable for CI runs")
     @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
     def test_02_10_10MB_serial(self, env: Env,
                               httpd, nghttpx, repeat, proto):
@@ -209,6 +213,8 @@ class TestDownload:
         r = curl.http_download(urls=[urln], alpn_proto=proto)
         r.check_response(count=count, http_status=200)
 
+    @pytest.mark.skipif(condition=Env().slow_network, reason="not suitable for slow network tests")
+    @pytest.mark.skipif(condition=Env().ci_run, reason="not suitable for CI runs")
     @pytest.mark.parametrize("proto", ['h2', 'h3'])
     def test_02_11_10MB_parallel(self, env: Env,
                               httpd, nghttpx, repeat, proto):
@@ -250,6 +256,8 @@ class TestDownload:
         ])
         r.check_response(count=count, http_status=200)
 
+    @pytest.mark.skipif(condition=Env().slow_network, reason="not suitable for slow network tests")
+    @pytest.mark.skipif(condition=Env().ci_run, reason="not suitable for CI runs")
     def test_02_20_h2_small_frames(self, env: Env, httpd, repeat):
         # Test case to reproduce content corruption as observed in
         # https://github.com/curl/curl/issues/10525
@@ -350,10 +358,10 @@ class TestDownload:
         assert r.duration > timedelta(seconds=4), \
             f'rate limited transfer should take more than 4s, not {r.duration}'
 
-    # make extreme paralllel h2 upgrades, check invalid conn reuse
+    # make extreme parallel h2 upgrades, check invalid conn reuse
     # before protocol switch has happened
     def test_02_25_h2_upgrade_x(self, env: Env, httpd, repeat):
-        # not locally reproducable timeouts with certain SSL libs
+        # not locally reproducible timeouts with certain SSL libs
         # Since this test is about connection reuse handling, we skip
         # it on these builds. Although we would certainly like to understand
         # why this happens.
@@ -365,6 +373,28 @@ class TestDownload:
             pytest.skip(f'example client not built: {client.name}')
         r = client.run(args=[url])
         assert r.exit_code == 0, f'{client.dump_logs()}'
+
+    # Special client that tests TLS session reuse in parallel transfers
+    def test_02_26_session_shared_reuse(self, env: Env, httpd, repeat):
+        curl = CurlClient(env=env)
+        url = f'https://{env.domain1}:{env.https_port}/data-100k'
+        client = LocalClient(name='tls-session-reuse', env=env)
+        if not client.exists():
+            pytest.skip(f'example client not built: {client.name}')
+        r = client.run(args=[url])
+        r.check_exit_code(0)
+
+    # test on paused transfers, based on issue #11982
+    @pytest.mark.parametrize("proto", ['h2', 'h3'])
+    def test_02_27_paused_no_cl(self, env: Env, httpd, nghttpx, proto, repeat):
+        if proto == 'h3' and not env.have_h3():
+            pytest.skip("h3 not supported")
+        url = f'https://{env.authority_for(env.domain1, proto)}' \
+                       f'/tweak?'\
+                       '&chunks=2&chunk_size=16000'
+        client = LocalClient(env=env, name='h2-pausing')
+        r = client.run(args=[url])
+        r.check_exit_code(0)
 
     def check_downloads(self, client, srcfile: str, count: int,
                         complete: bool = True):

@@ -68,22 +68,6 @@
 #  define HAS_ALPN 1
 #endif
 
-#ifndef UNISP_NAME_A
-#define UNISP_NAME_A "Microsoft Unified Security Protocol Provider"
-#endif
-
-#ifndef UNISP_NAME_W
-#define UNISP_NAME_W L"Microsoft Unified Security Protocol Provider"
-#endif
-
-#ifndef UNISP_NAME
-#ifdef UNICODE
-#define UNISP_NAME  UNISP_NAME_W
-#else
-#define UNISP_NAME  UNISP_NAME_A
-#endif
-#endif
-
 #ifndef BCRYPT_CHACHA20_POLY1305_ALGORITHM
 #define BCRYPT_CHACHA20_POLY1305_ALGORITHM L"CHACHA20_POLY1305"
 #endif
@@ -108,31 +92,12 @@
 #define BCRYPT_SHA384_ALGORITHM L"SHA384"
 #endif
 
-/* Workaround broken compilers like MinGW.
-   Return the number of elements in a statically sized array.
-*/
-#ifndef ARRAYSIZE
-#define ARRAYSIZE(A) (sizeof(A)/sizeof((A)[0]))
-#endif
-
 #ifdef HAS_CLIENT_CERT_PATH
 #ifdef UNICODE
 #define CURL_CERT_STORE_PROV_SYSTEM CERT_STORE_PROV_SYSTEM_W
 #else
 #define CURL_CERT_STORE_PROV_SYSTEM CERT_STORE_PROV_SYSTEM_A
 #endif
-#endif
-
-#ifndef SP_PROT_SSL2_CLIENT
-#define SP_PROT_SSL2_CLIENT             0x00000008
-#endif
-
-#ifndef SP_PROT_SSL3_CLIENT
-#define SP_PROT_SSL3_CLIENT             0x00000008
-#endif
-
-#ifndef SP_PROT_TLS1_CLIENT
-#define SP_PROT_TLS1_CLIENT             0x00000080
 #endif
 
 #ifndef SP_PROT_TLS1_0_CLIENT
@@ -173,12 +138,6 @@
 
 #ifndef CALG_SHA_256
 #  define CALG_SHA_256 0x0000800c
-#endif
-
-/* Work around typo in classic MinGW's w32api up to version 5.0,
-   see https://osdn.net/projects/mingw/ticket/38391 */
-#if !defined(ALG_CLASS_DHASH) && defined(ALG_CLASS_HASH)
-#define ALG_CLASS_DHASH ALG_CLASS_HASH
 #endif
 
 #ifndef PKCS12_NO_PERSIST_KEY
@@ -769,7 +728,7 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
   }
 #endif
 
-  /* allocate memory for the re-usable credential handle */
+  /* allocate memory for the reusable credential handle */
   backend->cred = (struct Curl_schannel_cred *)
     calloc(1, sizeof(struct Curl_schannel_cred));
   if(!backend->cred) {
@@ -1169,12 +1128,12 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
 
   backend->cred = NULL;
 
-  /* check for an existing re-usable credential handle */
+  /* check for an existing reusable credential handle */
   if(ssl_config->primary.sessionid) {
     Curl_ssl_sessionid_lock(data);
     if(!Curl_ssl_getsessionid(cf, data, (void **)&old_cred, NULL)) {
       backend->cred = old_cred;
-      DEBUGF(infof(data, "schannel: re-using existing credential handle"));
+      DEBUGF(infof(data, "schannel: reusing existing credential handle"));
 
       /* increment the reference counter of the credential/session handle */
       backend->cred->refcount++;
@@ -1656,7 +1615,8 @@ valid_cert_encoding(const CERT_CONTEXT *cert_context)
     (cert_context->cbCertEncoded > 0);
 }
 
-typedef bool(*Read_crt_func)(const CERT_CONTEXT *ccert_context, void *arg);
+typedef bool(*Read_crt_func)(const CERT_CONTEXT *ccert_context,
+                             bool reverse_order, void *arg);
 
 static void
 traverse_cert_store(const CERT_CONTEXT *context, Read_crt_func func,
@@ -1664,19 +1624,32 @@ traverse_cert_store(const CERT_CONTEXT *context, Read_crt_func func,
 {
   const CERT_CONTEXT *current_context = NULL;
   bool should_continue = true;
+  bool first = true;
+  bool reverse_order = false;
   while(should_continue &&
         (current_context = CertEnumCertificatesInStore(
           context->hCertStore,
-          current_context)) != NULL)
-    should_continue = func(current_context, arg);
+          current_context)) != NULL) {
+    /* Windows 11 22H2 OS Build 22621.674 or higher enumerates certificates in
+       leaf-to-root order while all previous versions of Windows enumerate
+       certificates in root-to-leaf order. Determine the order of enumeration
+       by comparing SECPKG_ATTR_REMOTE_CERT_CONTEXT's pbCertContext with the
+       first certificate's pbCertContext. */
+    if(first && context->pbCertEncoded != current_context->pbCertEncoded)
+      reverse_order = true;
+    should_continue = func(current_context, reverse_order, arg);
+    first = false;
+  }
 
   if(current_context)
     CertFreeCertificateContext(current_context);
 }
 
 static bool
-cert_counter_callback(const CERT_CONTEXT *ccert_context, void *certs_count)
+cert_counter_callback(const CERT_CONTEXT *ccert_context, bool reverse_order,
+                      void *certs_count)
 {
+  (void)reverse_order; /* unused */
   if(valid_cert_encoding(ccert_context))
     (*(int *)certs_count)++;
   return true;
@@ -1687,17 +1660,23 @@ struct Adder_args
   struct Curl_easy *data;
   CURLcode result;
   int idx;
+  int certs_count;
 };
 
 static bool
-add_cert_to_certinfo(const CERT_CONTEXT *ccert_context, void *raw_arg)
+add_cert_to_certinfo(const CERT_CONTEXT *ccert_context, bool reverse_order,
+                     void *raw_arg)
 {
   struct Adder_args *args = (struct Adder_args*)raw_arg;
   args->result = CURLE_OK;
   if(valid_cert_encoding(ccert_context)) {
     const char *beg = (const char *) ccert_context->pbCertEncoded;
     const char *end = beg + ccert_context->cbCertEncoded;
-    args->result = Curl_extract_certinfo(args->data, (args->idx)++, beg, end);
+    int insert_index = reverse_order ? (args->certs_count - 1) - args->idx :
+                       args->idx;
+    args->result = Curl_extract_certinfo(args->data, insert_index,
+                                         beg, end);
+    args->idx++;
   }
   return args->result == CURLE_OK;
 }
@@ -1776,7 +1755,7 @@ schannel_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
   }
 #endif
 
-  /* save the current session data for possible re-use */
+  /* save the current session data for possible reuse */
   if(ssl_config->primary.sessionid) {
     bool incache;
     bool added = FALSE;
@@ -1831,6 +1810,7 @@ schannel_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
       struct Adder_args args;
       args.data = data;
       args.idx = 0;
+      args.certs_count = certs_count;
       traverse_cert_store(ccert_context, add_cert_to_certinfo, &args);
       result = args.result;
     }
@@ -2731,8 +2711,7 @@ static void schannel_checksum(const unsigned char *input,
     if(!CryptCreateHash(hProv, algId, 0, 0, &hHash))
       break; /* failed */
 
-    /* workaround for original MinGW, should be (const BYTE*) */
-    if(!CryptHashData(hHash, (BYTE*)input, (DWORD)inputlen, 0))
+    if(!CryptHashData(hHash, input, (DWORD)inputlen, 0))
       break; /* failed */
 
     /* get hash size */

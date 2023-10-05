@@ -28,11 +28,6 @@
 #define CURL_NO_OLDIES
 #endif
 
-/* define mingw version macros, eg __MINGW{32,64}_{MINOR,MAJOR}_VERSION */
-#ifdef __MINGW32__
-#include <_mingw.h>
-#endif
-
 /*
  * Disable Visual Studio warnings:
  * 4127 "conditional expression is constant"
@@ -652,19 +647,19 @@
 #endif
 
 /* Single point where USE_SPNEGO definition might be defined */
-#if !defined(CURL_DISABLE_CRYPTO_AUTH) && \
+#if !defined(CURL_DISABLE_NEGOTIATE_AUTH) && \
     (defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI))
 #define USE_SPNEGO
 #endif
 
 /* Single point where USE_KERBEROS5 definition might be defined */
-#if !defined(CURL_DISABLE_CRYPTO_AUTH) && \
+#if !defined(CURL_DISABLE_KERBEROS_AUTH) && \
     (defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI))
 #define USE_KERBEROS5
 #endif
 
 /* Single point where USE_NTLM definition might be defined */
-#if !defined(CURL_DISABLE_CRYPTO_AUTH) && !defined(CURL_DISABLE_NTLM)
+#if !defined(CURL_DISABLE_NTLM)
 #  if defined(USE_OPENSSL) || defined(USE_MBEDTLS) ||                   \
   defined(USE_GNUTLS) || defined(USE_SECTRANSP) ||                      \
   defined(USE_OS400CRYPTO) || defined(USE_WIN32_CRYPTO) ||              \
@@ -830,9 +825,6 @@ int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf,
 #endif
 
 #if defined(USE_UNIX_SOCKETS) && defined(WIN32)
-#  if defined(__MINGW32__) && !defined(LUP_SECURE)
-     typedef u_short ADDRESS_FAMILY; /* Classic mingw, 11y+ old mingw-w64 */
-#  endif
 #  if !defined(UNIX_PATH_MAX)
      /* Replicating logic present in afunix.h
         (distributed with newer Windows 10 SDK versions only) */

@@ -793,6 +793,7 @@ sub checksystemfeatures {
     $feature{"wakeup"} = 1;
     $feature{"headers-api"} = 1;
     $feature{"xattr"} = 1;
+    $feature{"large-time"} = 1;
 
     # make each protocol an enabled "feature"
     for my $p (@protocols) {
@@ -2432,6 +2433,7 @@ if(!$randseed) {
         localtime(time);
     # seed of the month. December 2019 becomes 201912
     $randseed = ($year+1900)*100 + $mon+1;
+    print "Using curl: $CURL\n";
     open(my $curlvh, "-|", shell_quote($CURL) . " --version 2>/dev/null") ||
         die "could not get curl version!";
     my @c = <$curlvh>;
@@ -2671,7 +2673,7 @@ sub displaylogcontent {
                     logmsg " $line\n";
                 }
                 $linecount++;
-                $truncate = $linecount > 1000;
+                $truncate = $linecount > 1200;
             }
         }
         close($single);
@@ -2760,6 +2762,7 @@ my $total=0;
 my $lasttest=0;
 my @at = split(" ", $TESTCASES);
 my $count=0;
+my $endwaitcnt=0;
 
 $start = time();
 
@@ -2919,6 +2922,16 @@ while () {
         logmsg "ERROR: runner $riderror is dead! aborting test run\n";
         delete $runnersrunning{$riderror} if(defined $runnersrunning{$riderror});
         $globalabort = 1;
+    }
+    if(!scalar(@runtests) && ++$endwaitcnt == (240 + $jobs)) {
+        # Once all tests have been scheduled on a runner at the end of a test
+        # run, we just wait for their results to come in. If we're still
+        # waiting after a couple of minutes ($endwaitcnt multiplied by
+        # $runnerwait, plus $jobs because that number won't time out), display
+        # the same test runner status as we give with a SIGUSR1. This will
+        # likely point to a single test that has hung.
+        logmsg "Hmmm, the tests are taking a while to finish. Here is the status:\n";
+        catch_usr1();
     }
 }
 

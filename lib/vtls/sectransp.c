@@ -830,9 +830,9 @@ static const unsigned char ecDsaSecp384r1SpkiHeader[] = {
 #endif /* SECTRANSP_PINNEDPUBKEY_V1 */
 #endif /* SECTRANSP_PINNEDPUBKEY */
 
-static OSStatus bio_cf_in_read(SSLConnectionRef connection,
-                               void *buf,
-                               size_t *dataLength)  /* IN/OUT */
+static OSStatus sectransp_bio_cf_in_read(SSLConnectionRef connection,
+                                         void *buf,
+                                         size_t *dataLength)  /* IN/OUT */
 {
   struct Curl_cfilter *cf = (struct Curl_cfilter *)connection;
   struct ssl_connect_data *connssl = cf->ctx;
@@ -870,9 +870,9 @@ static OSStatus bio_cf_in_read(SSLConnectionRef connection,
   return rtn;
 }
 
-static OSStatus bio_cf_out_write(SSLConnectionRef connection,
-                                 const void *buf,
-                                 size_t *dataLength)  /* IN/OUT */
+static OSStatus sectransp_bio_cf_out_write(SSLConnectionRef connection,
+                                           const void *buf,
+                                           size_t *dataLength)  /* IN/OUT */
 {
   struct Curl_cfilter *cf = (struct Curl_cfilter *)connection;
   struct ssl_connect_data *connssl = cf->ctx;
@@ -2070,7 +2070,7 @@ static CURLcode sectransp_connect_step1(struct Curl_cfilter *cf,
         return CURLE_SSL_CONNECT_ERROR;
       }
       /* Informational message */
-      infof(data, "SSL re-using session ID");
+      infof(data, "SSL reusing session ID");
     }
     /* If there isn't one, then let's make one up! This has to be done prior
        to starting the handshake. */
@@ -2100,7 +2100,9 @@ static CURLcode sectransp_connect_step1(struct Curl_cfilter *cf,
     }
   }
 
-  err = SSLSetIOFuncs(backend->ssl_ctx, bio_cf_in_read, bio_cf_out_write);
+  err = SSLSetIOFuncs(backend->ssl_ctx,
+                      sectransp_bio_cf_in_read,
+                      sectransp_bio_cf_out_write);
   if(err != noErr) {
     failf(data, "SSL: SSLSetIOFuncs() failed: OSStatus %d", err);
     return CURLE_SSL_CONNECT_ERROR;
@@ -2433,7 +2435,6 @@ static CURLcode pkp_pin_peer_pubkey(struct Curl_easy *data,
     SecTrustRef trust;
     OSStatus ret;
     SecKeyRef keyRef;
-    OSStatus success;
 
     ret = SSLCopyPeerTrust(ctx, &trust);
     if(ret != noErr || !trust)
@@ -2453,11 +2454,14 @@ static CURLcode pkp_pin_peer_pubkey(struct Curl_easy *data,
 
 #elif SECTRANSP_PINNEDPUBKEY_V2
 
-    success = SecItemExport(keyRef, kSecFormatOpenSSL, 0, NULL,
-                            &publicKeyBits);
-    CFRelease(keyRef);
-    if(success != errSecSuccess || !publicKeyBits)
-      break;
+    {
+        OSStatus success;
+        success = SecItemExport(keyRef, kSecFormatOpenSSL, 0, NULL,
+                                &publicKeyBits);
+        CFRelease(keyRef);
+        if(success != errSecSuccess || !publicKeyBits)
+          break;
+    }
 
 #endif /* SECTRANSP_PINNEDPUBKEY_V2 */
 
@@ -3300,6 +3304,7 @@ static CURLcode sectransp_sha256sum(const unsigned char *tmp, /* input */
                                     unsigned char *sha256sum, /* output */
                                     size_t sha256len)
 {
+  (void)sha256len;
   assert(sha256len >= CURL_SHA256_DIGEST_LENGTH);
   (void)CC_SHA256(tmp, (CC_LONG)tmplen, sha256sum);
   return CURLE_OK;

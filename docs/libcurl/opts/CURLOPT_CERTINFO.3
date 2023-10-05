@@ -33,7 +33,7 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_CERTINFO, long certinfo);
 .fi
 .SH DESCRIPTION
 Pass a long set to 1 to enable libcurl's certificate chain info gatherer. With
-this enabled, libcurl will extract lots of information and data about the
+this enabled, libcurl extracts lots of information and data about the
 certificates in the certificate chain used in the SSL connection. This data
 may then be retrieved after a transfer using \fIcurl_easy_getinfo(3)\fP and
 its option \fICURLINFO_CERTINFO(3)\fP.
@@ -80,4 +80,8 @@ added in 7.79.0.
 .SH RETURN VALUE
 Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
 .SH "SEE ALSO"
-.BR CURLOPT_CAINFO "(3), " CURLOPT_SSL_VERIFYPEER "(3), "
+.BR CURLINFO_CAINFO (3),
+.BR CURLINFO_CAPATH (3),
+.BR CURLINFO_CERTINFO (3),
+.BR CURLOPT_CAINFO (3),
+.BR CURLOPT_SSL_VERIFYPEER (3)

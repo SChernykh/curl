@@ -414,7 +414,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
     Curl_hsts_cleanup(&data->hsts);
   curl_slist_free_all(data->set.hstslist); /* clean up list */
 #endif
-#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_CRYPTO_AUTH)
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_DIGEST_AUTH)
   Curl_http_auth_cleanup_digest(data);
 #endif
   Curl_safefree(data->info.contenttype);
@@ -455,6 +455,11 @@ CURLcode Curl_close(struct Curl_easy **datap)
     curl_slist_free_all(data->req.doh->headers);
     Curl_safefree(data->req.doh);
   }
+#endif
+
+  Curl_mime_cleanpart(data->state.formp);
+#ifndef CURL_DISABLE_HTTP
+  Curl_safefree(data->state.formp);
 #endif
 
   /* destruct wildcard structures if it is needed */
@@ -883,8 +888,8 @@ static bool conn_maxage(struct Curl_easy *data,
   idletime /= 1000; /* integer seconds is fine */
 
   if(idletime > data->set.maxage_conn) {
-    infof(data, "Too old connection (%ld seconds idle), disconnect it",
-          idletime);
+    infof(data, "Too old connection (%" CURL_FORMAT_TIMEDIFF_T
+          " seconds idle), disconnect it", idletime);
     return TRUE;
   }
 
@@ -893,8 +898,8 @@ static bool conn_maxage(struct Curl_easy *data,
 
   if(data->set.maxlifetime_conn && lifetime > data->set.maxlifetime_conn) {
     infof(data,
-          "Too old connection (%ld seconds since creation), disconnect it",
-          lifetime);
+          "Too old connection (%" CURL_FORMAT_TIMEDIFF_T
+          " seconds since creation), disconnect it", lifetime);
     return TRUE;
   }
 
@@ -948,7 +953,7 @@ static bool extract_if_dead(struct connectdata *conn,
          * that we expect - in general - no waiting input data. Input
          * waiting might be a TLS Notify Close, for example. We reject
          * that.
-         * For protocols where data from other other end may arrive at
+         * For protocols where data from other end may arrive at
          * any time (HTTP/2 PING for example), the protocol handler needs
          * to install its own `connection_check` callback.
          */
@@ -1098,7 +1103,7 @@ ConnectionExists(struct Curl_easy *data,
           infof(data, "Server doesn't support multiplex yet, wait");
           *waitpipe = TRUE;
           CONNCACHE_UNLOCK(data);
-          return FALSE; /* no re-use */
+          return FALSE; /* no reuse */
         }
 
         infof(data, "Server doesn't support multiplex (yet)");
@@ -1155,7 +1160,7 @@ ConnectionExists(struct Curl_easy *data,
 
         if(Curl_resolver_asynch() &&
            /* primary_ip[0] is NUL only if the resolving of the name hasn't
-              completed yet and until then we don't re-use this connection */
+              completed yet and until then we don't reuse this connection */
            !check->primary_ip[0])
           continue;
       }
@@ -1241,7 +1246,7 @@ ConnectionExists(struct Curl_easy *data,
           infof(data, "Server upgrade doesn't support multiplex yet, wait");
           *waitpipe = TRUE;
           CONNCACHE_UNLOCK(data);
-          return FALSE; /* no re-use */
+          return FALSE; /* no reuse */
         }
         infof(data, "Server upgrade cannot be used");
         continue; /* can't be used atm */
@@ -1263,14 +1268,14 @@ ConnectionExists(struct Curl_easy *data,
 
       if(needle->localdev || needle->localport) {
         /* If we are bound to a specific local end (IP+port), we must not
-           re-use a random other one, although if we didn't ask for a
+           reuse a random other one, although if we didn't ask for a
            particular one we can reuse one that was bound.
 
            This comparison is a bit rough and too strict. Since the input
            parameters can be specified in numerous ways and still end up the
            same it would take a lot of processing to make it really accurate.
-           Instead, this matching will assume that re-uses of bound connections
-           will most likely also re-use the exact same binding parameters and
+           Instead, this matching will assume that reuses of bound connections
+           will most likely also reuse the exact same binding parameters and
            missing out a few edge cases shouldn't hurt anyone very much.
         */
         if((check->localport != needle->localport) ||
@@ -1590,8 +1595,10 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
     if(!conn->localdev)
       goto error;
   }
+#ifndef CURL_DISABLE_BINDLOCAL
   conn->localportrange = data->set.localportrange;
   conn->localport = data->set.localport;
+#endif
 
   /* the close socket stuff needs to be copied to the connection struct as
      it may live on without (this specific) Curl_easy */
@@ -2026,13 +2033,13 @@ void Curl_free_request_state(struct Curl_easy *data)
 {
   Curl_safefree(data->req.p.http);
   Curl_safefree(data->req.newurl);
-
 #ifndef CURL_DISABLE_DOH
   if(data->req.doh) {
     Curl_close(&data->req.doh->probe[0].easy);
     Curl_close(&data->req.doh->probe[1].easy);
   }
 #endif
+  Curl_client_cleanup(data);
 }
 
 
@@ -2123,7 +2130,7 @@ static char *detect_proxy(struct Curl_easy *data,
 
 /*
  * If this is supposed to use a proxy, we need to figure out the proxy
- * host name, so that we can re-use an existing connection
+ * host name, so that we can reuse an existing connection
  * that may exist registered to the same proxy host.
  */
 static CURLcode parse_proxy(struct Curl_easy *data,
@@ -2444,7 +2451,7 @@ static CURLcode create_conn_helper_init_proxy(struct Curl_easy *data,
 
   /***********************************************************************
    * If this is supposed to use a proxy, we need to figure out the proxy host
-   * name, proxy type and port number, so that we can re-use an existing
+   * name, proxy type and port number, so that we can reuse an existing
    * connection that may exist registered to the same proxy host.
    ***********************************************************************/
   if(proxy || socksproxy) {
@@ -2712,7 +2719,9 @@ static CURLcode override_login(struct Curl_easy *data,
                           data->set.str[STRING_NETRC_FILE]);
     if(ret > 0) {
       infof(data, "Couldn't find host %s in the %s file; using defaults",
-            conn->host.name, data->set.str[STRING_NETRC_FILE]);
+            conn->host.name,
+            (data->set.str[STRING_NETRC_FILE] ?
+             data->set.str[STRING_NETRC_FILE] : ".netrc"));
     }
     else if(ret < 0) {
       failf(data, ".netrc parser error");
@@ -3207,8 +3216,8 @@ static CURLcode resolve_host(struct Curl_easy *data,
   if(rc == CURLRESOLV_PENDING)
     *async = TRUE;
   else if(rc == CURLRESOLV_TIMEDOUT) {
-    failf(data, "Failed to resolve host '%s' with timeout after %ld ms",
-          connhost->dispname,
+    failf(data, "Failed to resolve host '%s' with timeout after %"
+          CURL_FORMAT_TIMEDIFF_T " ms", connhost->dispname,
           Curl_timediff(Curl_now(), data->progress.t_startsingle));
     return CURLE_OPERATION_TIMEDOUT;
   }
@@ -3262,7 +3271,7 @@ static CURLcode resolve_server(struct Curl_easy *data,
   /* Resolve the name of the server or proxy */
   if(conn->bits.reuse) {
     /* We're reusing the connection - no need to resolve anything, and
-       idnconvert_hostname() was called already in create_conn() for the re-use
+       idnconvert_hostname() was called already in create_conn() for the reuse
        case. */
     *async = FALSE;
     return CURLE_OK;
@@ -3281,7 +3290,7 @@ static void reuse_conn(struct Curl_easy *data,
                        struct connectdata *existing)
 {
   /* get the user+password information from the temp struct since it may
-   * be new for this request even when we re-use an existing connection */
+   * be new for this request even when we reuse an existing connection */
   if(temp->user) {
     /* use the new user name and password though */
     Curl_safefree(existing->user);
@@ -3341,14 +3350,14 @@ static void reuse_conn(struct Curl_easy *data,
   existing->hostname_resolve = temp->hostname_resolve;
   temp->hostname_resolve = NULL;
 
-  /* re-use init */
-  existing->bits.reuse = TRUE; /* yes, we're re-using here */
+  /* reuse init */
+  existing->bits.reuse = TRUE; /* yes, we're reusing here */
 
   conn_free(data, temp);
 }
 
 /**
- * create_conn() sets up a new connectdata struct, or re-uses an already
+ * create_conn() sets up a new connectdata struct, or reuses an already
  * existing one, and resolves host name.
  *
  * if this function returns CURLE_OK and *async is set to TRUE, the resolve
@@ -3660,7 +3669,7 @@ static CURLcode create_conn(struct Curl_easy *data,
 
   /*************************************************************
    * Check the current list of connections to see if we can
-   * re-use an already existing one or if we have to create a
+   * reuse an already existing one or if we have to create a
    * new one.
    *************************************************************/
 
@@ -3668,7 +3677,7 @@ static CURLcode create_conn(struct Curl_easy *data,
   DEBUGASSERT(conn->passwd);
 
   /* reuse_fresh is TRUE if we are told to use a new connection by force, but
-     we only acknowledge this option if this is not a re-used connection
+     we only acknowledge this option if this is not a reused connection
      already (which happens due to follow-location or during an HTTP
      authentication phase). CONNECT_ONLY transfers also refuse reuse. */
   if((data->set.reuse_fresh && !data->state.followlocation) ||

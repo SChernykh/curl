@@ -117,11 +117,9 @@ static CURLcode mqtt_send(struct Curl_easy *data,
                           char *buf, size_t len)
 {
   CURLcode result = CURLE_OK;
-  struct connectdata *conn = data->conn;
-  curl_socket_t sockfd = conn->sock[FIRSTSOCKET];
   struct MQTT *mq = data->req.p.mqtt;
   ssize_t n;
-  result = Curl_write(data, sockfd, buf, len, &n);
+  result = Curl_nwrite(data, FIRSTSOCKET, buf, len, &n);
   if(result)
     return result;
   Curl_debug(data, CURLINFO_HEADER_OUT, buf, (size_t)n);
@@ -297,12 +295,12 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
   /* set initial values for the CONNECT packet */
   pos = init_connpack(packet, remain, remain_pos);
 
-  result = Curl_rand_hex(data, (unsigned char *)&client_id[clen],
-                         MQTT_CLIENTID_LEN - clen + 1);
+  result = Curl_rand_alnum(data, (unsigned char *)&client_id[clen],
+                           MQTT_CLIENTID_LEN - clen + 1);
   /* add client id */
   rc = add_client_id(client_id, strlen(client_id), packet, pos + 1);
   if(rc) {
-    failf(data, "Client ID length mismatched: [%lu]", strlen(client_id));
+    failf(data, "Client ID length mismatched: [%zu]", strlen(client_id));
     result = CURLE_WEIRD_SERVER_REPLY;
     goto end;
   }
@@ -319,7 +317,7 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
     rc = add_user(username, ulen,
                   (unsigned char *)packet, start_user, remain_pos);
     if(rc) {
-      failf(data, "Username is too large: [%lu]", ulen);
+      failf(data, "Username is too large: [%zu]", ulen);
       result = CURLE_WEIRD_SERVER_REPLY;
       goto end;
     }
@@ -329,7 +327,7 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
   if(plen) {
     rc = add_passwd(passwd, plen, packet, start_pwd, remain_pos);
     if(rc) {
-      failf(data, "Password is too large: [%lu]", plen);
+      failf(data, "Password is too large: [%zu]", plen);
       result = CURLE_WEIRD_SERVER_REPLY;
       goto end;
     }
@@ -670,7 +668,9 @@ MQTT_SUBACK_COMING:
 
     mq->npacket -= nread;
     k->bytecount += nread;
-    Curl_pgrsSetDownloadCounter(data, k->bytecount);
+    result = Curl_pgrsSetDownloadCounter(data, k->bytecount);
+    if(result)
+      goto end;
 
     /* if QoS is set, message contains packet id */
 

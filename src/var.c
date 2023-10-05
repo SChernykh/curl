@@ -307,7 +307,7 @@ ParameterError varexpand(struct GlobalConfig *global,
             vlen = curlx_dyn_len(&buf);
           }
 
-          if(value && *value) {
+          if(value && vlen > 0) {
             /* A variable might contain null bytes. Such bytes cannot be shown
                using normal means, this is an error. */
             char *nb = memchr(value, '\0', vlen);
@@ -431,12 +431,14 @@ ParameterError setvariable(struct GlobalConfig *global,
       file = stdin;
     else {
       file = fopen(line, "rb");
+      if(!file) {
+        errorf(global, "Failed to open %s", line);
+        return PARAM_READ_ERROR;
+      }
     }
-    if(file) {
-      err = file2memory(&content, &clen, file);
-      /* in case of out of memory, this should fail the entire operation */
-      contalloc = TRUE;
-    }
+    err = file2memory(&content, &clen, file);
+    /* in case of out of memory, this should fail the entire operation */
+    contalloc = TRUE;
     if(!use_stdin)
       fclose(file);
     if(err)

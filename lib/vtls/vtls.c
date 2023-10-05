@@ -417,7 +417,7 @@ bool Curl_ssl_getsessionid(struct Curl_cfilter *cf,
   DEBUGASSERT(ssl_config->primary.sessionid);
 
   if(!ssl_config->primary.sessionid || !data->state.session)
-    /* session ID re-use is disabled or the session cache has not been
+    /* session ID reuse is disabled or the session cache has not been
        setup */
     return TRUE;
 
@@ -635,19 +635,16 @@ int Curl_ssl_get_select_socks(struct Curl_cfilter *cf, struct Curl_easy *data,
   struct ssl_connect_data *connssl = cf->ctx;
   curl_socket_t sock = Curl_conn_cf_get_socket(cf->next, data);
 
-  if(sock != CURL_SOCKET_BAD) {
-    if(connssl->connecting_state == ssl_connect_2_writing) {
-      /* write mode */
-      socks[0] = sock;
-      return GETSOCK_WRITESOCK(0);
-    }
-    if(connssl->connecting_state == ssl_connect_2_reading) {
-      /* read mode */
-      socks[0] = sock;
-      return GETSOCK_READSOCK(0);
-    }
+  if(sock == CURL_SOCKET_BAD)
+    return GETSOCK_BLANK;
+
+  if(connssl->connecting_state == ssl_connect_2_writing) {
+    /* we are only interested in writing */
+    socks[0] = sock;
+    return GETSOCK_WRITESOCK(0);
   }
-  return GETSOCK_BLANK;
+  socks[0] = sock;
+  return GETSOCK_READSOCK(0);
 }
 
 /* Selects an SSL crypto engine
@@ -883,6 +880,9 @@ CURLcode Curl_pin_peer_pubkey(struct Curl_easy *data,
   FILE *fp;
   unsigned char *buf = NULL, *pem_ptr = NULL;
   CURLcode result = CURLE_SSL_PINNEDPUBKEYNOTMATCH;
+#ifdef CURL_DISABLE_VERBOSE_STRINGS
+  (void)data;
+#endif
 
   /* if a path wasn't specified, don't pin */
   if(!pinnedpubkey)
@@ -1494,7 +1494,8 @@ static void ssl_cf_close(struct Curl_cfilter *cf,
 
   CF_DATA_SAVE(save, cf, data);
   cf_close(cf, data);
-  cf->next->cft->do_close(cf->next, data);
+  if(cf->next)
+    cf->next->cft->do_close(cf->next, data);
   CF_DATA_RESTORE(cf, save);
 }
 
@@ -1512,6 +1513,7 @@ static CURLcode ssl_cf_connect(struct Curl_cfilter *cf,
   }
 
   CF_DATA_SAVE(save, cf, data);
+  CURL_TRC_CF(data, cf, "cf_connect()");
   (void)connssl;
   DEBUGASSERT(data->conn);
   DEBUGASSERT(data->conn == cf->conn);
@@ -1541,6 +1543,7 @@ static CURLcode ssl_cf_connect(struct Curl_cfilter *cf,
     DEBUGASSERT(connssl->state == ssl_connection_complete);
   }
 out:
+  CURL_TRC_CF(data, cf, "cf_connect() -> %d, done=%d", result, *done);
   CF_DATA_RESTORE(cf, save);
   return result;
 }
@@ -1601,12 +1604,17 @@ static int ssl_cf_get_select_socks(struct Curl_cfilter *cf,
                                    curl_socket_t *socks)
 {
   struct cf_call_data save;
-  int result;
+  int fds = GETSOCK_BLANK;
 
-  CF_DATA_SAVE(save, cf, data);
-  result = Curl_ssl->get_select_socks(cf, data, socks);
-  CF_DATA_RESTORE(cf, save);
-  return result;
+  if(!cf->next->connected) {
+    fds = cf->next->cft->get_select_socks(cf->next, data, socks);
+  }
+  else if(!cf->connected) {
+    CF_DATA_SAVE(save, cf, data);
+    fds = Curl_ssl->get_select_socks(cf, data, socks);
+    CF_DATA_RESTORE(cf, save);
+  }
+  return fds;
 }
 
 static CURLcode ssl_cf_cntrl(struct Curl_cfilter *cf,

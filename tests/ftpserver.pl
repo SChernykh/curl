@@ -410,21 +410,22 @@ sub sysread_or_die {
 }
 
 sub startsf {
-    my $mainsockfcmd = "./server/sockfilt".exe_ext('SRV')." " .
-        "--ipv$ipvnum --port $port " .
-        "--pidfile \"$mainsockf_pidfile\" " .
-        "--portfile \"$portfile\" " .
-        "--logfile \"$mainsockf_logfile\"";
-    $sfpid = open2(*SFREAD, *SFWRITE, $mainsockfcmd);
+    my @mainsockfcmd = ("./server/sockfilt".exe_ext('SRV'),
+        "--ipv$ipvnum",
+	"--port", $port,
+        "--pidfile", $mainsockf_pidfile,
+        "--portfile", $portfile,
+        "--logfile", $mainsockf_logfile);
+    $sfpid = open2(*SFREAD, *SFWRITE, @mainsockfcmd);
 
-    print STDERR "$mainsockfcmd\n" if($verbose);
+    print STDERR "@mainsockfcmd\n" if($verbose);
 
     print SFWRITE "PING\n";
     my $pong;
     sysread_or_die(\*SFREAD, \$pong, 5);
 
     if($pong !~ /^PONG/) {
-        logmsg "Failed sockfilt command: $mainsockfcmd\n";
+        logmsg "Failed sockfilt command: @mainsockfcmd\n";
         killsockfilters($piddir, $proto, $ipvnum, $idnum, $verbose);
         unlink($pidfile);
         unlink($portfile);
@@ -873,7 +874,7 @@ sub RCPT_smtp {
               /^<([a-zA-Z0-9._%+-]+)\@(([a-zA-Z0-9-]+)\.)+([a-zA-Z]{2,4})>$/) ||
             ($smtputf8 && $to =~
               /^<([a-zA-Z0-9\x{80}-\x{ff}._%+-]+)\@(([a-zA-Z0-9\x{80}-\x{ff}-]+)\.)+([a-zA-Z]{2,4})>$/)) {
-            sendcontrol "250 Recipient OK\r\n";      
+            sendcontrol "250 Recipient OK\r\n";
         }
         else {
             sendcontrol "501 Invalid address\r\n";
@@ -1820,7 +1821,7 @@ sub LIST_pop3 {
     # This is a built-in fake-message list
     my @data = (
         "1 100\r\n",
-        "2 4294967400\r\n",	# > 4 GB
+        "2 4294967400\r\n",  # > 4 GB
         "3 200\r\n",
     );
 
@@ -2433,7 +2434,6 @@ sub STOR_ftp {
 sub PASV_ftp {
     my ($arg, $cmd)=@_;
     my $pasvport;
-    my $bindonly = ($nodataconn) ? '--bindonly' : '';
 
     # kill previous data connection sockfilt when alive
     if($datasockf_runs eq 'yes') {
@@ -2447,11 +2447,14 @@ sub PASV_ftp {
     logmsg "DATA sockfilt for passive data channel starting...\n";
 
     # We fire up a new sockfilt to do the data transfer for us.
-    my $datasockfcmd = "./server/sockfilt".exe_ext('SRV')." " .
-        "--ipv$ipvnum $bindonly --port 0 " .
-        "--pidfile \"$datasockf_pidfile\" " .
-        "--logfile \"$datasockf_logfile\"";
-    $slavepid = open2(\*DREAD, \*DWRITE, $datasockfcmd);
+    my @datasockfcmd = ("./server/sockfilt".exe_ext('SRV'),
+        "--ipv$ipvnum", "--port", 0,
+        "--pidfile", $datasockf_pidfile,
+        "--logfile",  $datasockf_logfile);
+    if($nodataconn) {
+        push(@datasockfcmd, '--bindonly');
+    }
+    $slavepid = open2(\*DREAD, \*DWRITE, @datasockfcmd);
 
     if($nodataconn) {
         datasockf_state('PASSIVE_NODATACONN');
@@ -2460,7 +2463,7 @@ sub PASV_ftp {
         datasockf_state('PASSIVE');
     }
 
-    print STDERR "$datasockfcmd\n" if($verbose);
+    print STDERR "@datasockfcmd\n" if($verbose);
 
     print DWRITE "PING\n";
     my $pong;
@@ -2666,15 +2669,15 @@ sub PORT_ftp {
     logmsg "DATA sockfilt for active data channel starting...\n";
 
     # We fire up a new sockfilt to do the data transfer for us.
-    my $datasockfcmd = "./server/sockfilt".exe_ext('SRV')." " .
-        "--ipv$ipvnum --connect $port --addr \"$addr\" " .
-        "--pidfile \"$datasockf_pidfile\" " .
-        "--logfile \"$datasockf_logfile\"";
-    $slavepid = open2(\*DREAD, \*DWRITE, $datasockfcmd);
+    my @datasockfcmd = ("./server/sockfilt".exe_ext('SRV'),
+        "--ipv$ipvnum", "--connect", $port, "--addr", $addr,
+        "--pidfile", $datasockf_pidfile,
+        "--logfile", $datasockf_logfile);
+    $slavepid = open2(\*DREAD, \*DWRITE, @datasockfcmd);
 
     datasockf_state('ACTIVE');
 
-    print STDERR "$datasockfcmd\n" if($verbose);
+    print STDERR "@datasockfcmd\n" if($verbose);
 
     print DWRITE "PING\n";
     my $pong;

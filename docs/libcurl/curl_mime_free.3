@@ -43,8 +43,8 @@ are by the top structure freeing.
 \fBmime\fP is the handle as returned from a previous call to
 \fIcurl_mime_init(3)\fP and may be NULL.
 
-Passing in a NULL pointer in \fImime\fP will make this function return
-immediately with no action.
+Passing in a NULL pointer in \fImime\fP makes this function return immediately
+with no action.
 .SH EXAMPLE
 .nf
   /* Build the mime message. */
@@ -60,4 +60,5 @@ As long as at least one of HTTP, SMTP or IMAP is enabled. Added in 7.56.0.
 .SH RETURN VALUE
 None
 .SH "SEE ALSO"
-.BR curl_mime_init "(3)"
+.BR curl_free (3),
+.BR curl_mime_init (3)

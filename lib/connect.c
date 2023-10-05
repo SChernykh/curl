@@ -381,6 +381,11 @@ struct cf_he_ctx {
   struct curltime started;
 };
 
+/* when there are more than one IP address left to use, this macro returns how
+   much of the given timeout to spend on *this* attempt */
+#define TIMEOUT_LARGE 600
+#define USETIME(ms) ((ms > TIMEOUT_LARGE) ? (ms / 2) : ms)
+
 static CURLcode eyeballer_new(struct eyeballer **pballer,
                               cf_ip_connect_create *cf_create,
                               const struct Curl_addrinfo *addr,
@@ -408,7 +413,7 @@ static CURLcode eyeballer_new(struct eyeballer **pballer,
   baller->primary = primary;
   baller->delay_ms = delay_ms;
   baller->timeoutms = addr_next_match(baller->addr, baller->ai_family)?
-                        timeout_ms / 2 : timeout_ms;
+    USETIME(timeout_ms) : timeout_ms;
   baller->timeout_id = timeout_id;
   baller->result = CURLE_COULDNT_CONNECT;
 
@@ -501,7 +506,7 @@ static CURLcode baller_start(struct Curl_cfilter *cf,
   while(baller->addr) {
     baller->started = Curl_now();
     baller->timeoutms = addr_next_match(baller->addr, baller->ai_family) ?
-                         timeoutms / 2 : timeoutms;
+      USETIME(timeoutms) : timeoutms;
     baller_initiate(cf, data, baller);
     if(!baller->result)
       break;
@@ -629,6 +634,7 @@ evaluate:
         /* next attempt was started */
         CURL_TRC_CF(data, cf, "%s trying next", baller->name);
         ++ongoing;
+        Curl_expire(data, 0, EXPIRE_RUN_NOW);
       }
     }
   }
@@ -641,7 +647,7 @@ evaluate:
   /* Nothing connected, check the time before we might
    * start new ballers or return ok. */
   if((ongoing || not_started) && Curl_timeleft(data, &now, TRUE) < 0) {
-    failf(data, "Connection timeout after %ld ms",
+    failf(data, "Connection timeout after %" CURL_FORMAT_CURL_OFF_T " ms",
           Curl_timediff(now, data->progress.t_startsingle));
     return CURLE_OPERATION_TIMEDOUT;
   }
@@ -818,10 +824,9 @@ static CURLcode start_connect(struct Curl_cfilter *cf,
     CURL_TRC_CF(data, cf, "created %s (timeout %"
                 CURL_FORMAT_TIMEDIFF_T "ms)",
                 ctx->baller[1]->name, ctx->baller[1]->timeoutms);
+    Curl_expire(data, data->set.happy_eyeballs_timeout,
+                EXPIRE_HAPPY_EYEBALLS);
   }
-
-  Curl_expire(data, data->set.happy_eyeballs_timeout,
-              EXPIRE_HAPPY_EYEBALLS);
 
   return CURLE_OK;
 }
@@ -1441,4 +1446,3 @@ CURLcode Curl_conn_setup(struct Curl_easy *data,
 out:
   return result;
 }
-

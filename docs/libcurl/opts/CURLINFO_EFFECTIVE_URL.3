@@ -37,9 +37,9 @@ Pass in a pointer to a char pointer and get the last used effective URL.
 In cases when you have asked libcurl to follow redirects, it may not be the same
 value you set with \fICURLOPT_URL(3)\fP.
 
-The \fBurlp\fP pointer will be NULL or pointing to private memory you MUST NOT
-free - it gets freed when you call \fIcurl_easy_cleanup(3)\fP on the
-corresponding CURL handle.
+The \fBurlp\fP pointer is NULL or points to private memory. You MUST NOT free
+- it gets freed when you call \fIcurl_easy_cleanup(3)\fP on the corresponding
+CURL handle.
 .SH PROTOCOLS
 HTTP(S)
 .SH EXAMPLE
@@ -64,4 +64,6 @@ Added in 7.4
 .SH RETURN VALUE
 Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
 .SH "SEE ALSO"
-.BR curl_easy_getinfo "(3), " curl_easy_setopt "(3), "
+.BR curl_easy_getinfo (3),
+.BR curl_easy_setopt (3),
+.BR CURLOPT_FOLLOWLOCATION (3)

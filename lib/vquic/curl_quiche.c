@@ -45,8 +45,10 @@
 #include "vquic_int.h"
 #include "curl_quiche.h"
 #include "transfer.h"
+#include "inet_pton.h"
 #include "vtls/openssl.h"
 #include "vtls/keylog.h"
+#include "vtls/vtls.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -56,7 +58,7 @@
 /* #define DEBUG_QUICHE */
 
 #define QUIC_MAX_STREAMS              (100)
-#define QUIC_IDLE_TIMEOUT        (5 * 1000) /* milliseconds */
+#define QUIC_IDLE_TIMEOUT        (60 * 1000) /* milliseconds */
 
 #define H3_STREAM_WINDOW_SIZE  (128 * 1024)
 #define H3_STREAM_CHUNK_SIZE    (16 * 1024)
@@ -147,8 +149,8 @@ static CURLcode quic_x509_store_setup(struct Curl_cfilter *cf,
         SSL_CTX_set_verify(ctx->sslctx, SSL_VERIFY_PEER, NULL);
         /* tell OpenSSL where to find CA certificates that are used to verify
            the server's certificate. */
-        if(!SSL_CTX_load_verify_locations(
-              ctx->sslctx, ssl_cafile, ssl_capath)) {
+        if(!SSL_CTX_load_verify_locations(ctx->sslctx, ssl_cafile,
+                                          ssl_capath)) {
           /* Fail if we insist on successfully verifying the server. */
           failf(data, "error setting certificate verify locations:"
                 "  CAfile: %s CApath: %s",
@@ -163,7 +165,7 @@ static CURLcode quic_x509_store_setup(struct Curl_cfilter *cf,
       else {
         /* verifying the peer without any CA certificates won't work so
            use openssl's built-in default as fallback */
-        SSL_CTX_set_default_verify_paths(ssl_ctx);
+        SSL_CTX_set_default_verify_paths(ctx->sslctx);
       }
 #endif
     }
@@ -175,8 +177,10 @@ static CURLcode quic_x509_store_setup(struct Curl_cfilter *cf,
 static CURLcode quic_ssl_setup(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
+  unsigned char checkip[16];
+  struct connectdata *conn = data->conn;
+  const char *curves = conn->ssl_config.curves;
 
-  (void)data;
   DEBUGASSERT(!ctx->sslctx);
   ctx->sslctx = SSL_CTX_new(TLS_method());
   if(!ctx->sslctx)
@@ -194,12 +198,30 @@ static CURLcode quic_ssl_setup(struct Curl_cfilter *cf, struct Curl_easy *data)
     SSL_CTX_set_keylog_callback(ctx->sslctx, keylog_callback);
   }
 
+  if(curves && !SSL_CTX_set1_curves_list(ctx->sslctx, curves)) {
+    failf(data, "failed setting curves list for QUIC: '%s'", curves);
+    return CURLE_SSL_CIPHER;
+  }
+
   ctx->ssl = SSL_new(ctx->sslctx);
   if(!ctx->ssl)
     return CURLE_QUIC_CONNECT_ERROR;
 
   SSL_set_app_data(ctx->ssl, cf);
-  SSL_set_tlsext_host_name(ctx->ssl, cf->conn->host.name);
+
+  if((0 == Curl_inet_pton(AF_INET, cf->conn->host.name, checkip))
+#ifdef ENABLE_IPV6
+     && (0 == Curl_inet_pton(AF_INET6, cf->conn->host.name, checkip))
+#endif
+     ) {
+    char *snihost = Curl_ssl_snihost(data, cf->conn->host.name, NULL);
+    if(!snihost || !SSL_set_tlsext_host_name(ctx->ssl, snihost)) {
+      failf(data, "Failed set SNI");
+      SSL_free(ctx->ssl);
+      ctx->ssl = NULL;
+      return CURLE_QUIC_CONNECT_ERROR;
+    }
+  }
 
   return CURLE_OK;
 }
@@ -210,6 +232,7 @@ static CURLcode quic_ssl_setup(struct Curl_cfilter *cf, struct Curl_easy *data)
 struct stream_ctx {
   int64_t id; /* HTTP/3 protocol stream identifier */
   struct bufq recvbuf; /* h3 response */
+  struct h1_req_parser h1; /* h1 request parsing */
   uint64_t error3; /* HTTP/3 stream error code */
   curl_off_t upload_left; /* number of request bytes left to upload */
   bool closed; /* TRUE on stream close */
@@ -298,6 +321,7 @@ static CURLcode h3_data_setup(struct Curl_cfilter *cf,
   stream->id = -1;
   Curl_bufq_initp(&stream->recvbuf, &ctx->stream_bufcp,
                   H3_STREAM_RECV_CHUNKS, BUFQ_OPT_SOFT_LIMIT);
+  Curl_h1_req_parse_init(&stream->h1, H1_PARSE_DEFAULT_MAX_LINE_LEN);
   return CURLE_OK;
 }
 
@@ -314,6 +338,7 @@ static void h3_data_done(struct Curl_cfilter *cf, struct Curl_easy *data)
       --ctx->sends_on_hold;
     }
     Curl_bufq_free(&stream->recvbuf);
+    Curl_h1_req_parse_free(&stream->h1);
     free(stream);
     H3_STREAM_LCTX(data) = NULL;
   }
@@ -565,6 +590,7 @@ static CURLcode h3_process_event(struct Curl_cfilter *cf,
     }
     stream->closed = TRUE;
     streamclose(cf->conn, "End of stream");
+    data->req.keepon &= ~KEEP_SEND_HOLD;
     break;
 
   case QUICHE_H3_EVENT_GOAWAY:
@@ -747,9 +773,19 @@ static CURLcode cf_flush_egress(struct Curl_cfilter *cf,
   struct cf_quiche_ctx *ctx = cf->ctx;
   ssize_t nread;
   CURLcode result;
+  int64_t expiry_ns;
   int64_t timeout_ns;
   struct read_ctx readx;
   size_t pkt_count, gsolen;
+
+  expiry_ns = quiche_conn_timeout_as_nanos(ctx->qconn);
+  if(!expiry_ns) {
+    quiche_conn_on_timeout(ctx->qconn);
+    if(quiche_conn_is_closed(ctx->qconn)) {
+      failf(data, "quiche_conn_on_timeout closed the connection");
+      return CURLE_SEND_ERROR;
+    }
+  }
 
   result = vquic_flush(cf, data, &ctx->q);
   if(result) {
@@ -925,7 +961,6 @@ static ssize_t h3_open_stream(struct Curl_cfilter *cf,
   struct stream_ctx *stream = H3_STREAM_CTX(data);
   size_t nheader, i;
   int64_t stream3_id;
-  struct h1_req_parser h1;
   struct dynhds h2_headers;
   quiche_h3_header *nva = NULL;
   ssize_t nwritten;
@@ -939,21 +974,25 @@ static ssize_t h3_open_stream(struct Curl_cfilter *cf,
     DEBUGASSERT(stream);
   }
 
-  Curl_h1_req_parse_init(&h1, H1_PARSE_DEFAULT_MAX_LINE_LEN);
   Curl_dynhds_init(&h2_headers, 0, DYN_HTTP_REQUEST);
 
   DEBUGASSERT(stream);
-  nwritten = Curl_h1_req_parse_read(&h1, buf, len, NULL, 0, err);
+  nwritten = Curl_h1_req_parse_read(&stream->h1, buf, len, NULL, 0, err);
   if(nwritten < 0)
     goto out;
-  DEBUGASSERT(h1.done);
-  DEBUGASSERT(h1.req);
+  if(!stream->h1.done) {
+    /* need more data */
+    goto out;
+  }
+  DEBUGASSERT(stream->h1.req);
 
-  *err = Curl_http_req_to_h2(&h2_headers, h1.req, data);
+  *err = Curl_http_req_to_h2(&h2_headers, stream->h1.req, data);
   if(*err) {
     nwritten = -1;
     goto out;
   }
+  /* no longer needed */
+  Curl_h1_req_parse_free(&stream->h1);
 
   nheader = Curl_dynhds_count(&h2_headers);
   nva = malloc(sizeof(quiche_h3_header) * nheader);
@@ -1030,7 +1069,6 @@ static ssize_t h3_open_stream(struct Curl_cfilter *cf,
 
 out:
   free(nva);
-  Curl_h1_req_parse_free(&h1);
   Curl_dynhds_free(&h2_headers);
   return nwritten;
 }
@@ -1070,6 +1108,22 @@ static ssize_t cf_quiche_send(struct Curl_cfilter *cf, struct Curl_easy *data,
       }
       *err = CURLE_AGAIN;
       nwritten = -1;
+      goto out;
+    }
+    else if(nwritten == QUICHE_H3_TRANSPORT_ERR_INVALID_STREAM_STATE &&
+            stream->closed && stream->resp_hds_complete) {
+      /* sending request body on a stream that has been closed by the
+       * server. If the server has send us a final response, we should
+       * silently discard the send data.
+       * This happens for example on redirects where the server, instead
+       * of reading the full request body just closed the stream after
+       * sending the 30x response.
+       * This is sort of a race: had the transfer loop called recv first,
+       * it would see the response and stop/discard sending on its own- */
+      CURL_TRC_CF(data, cf, "[%" PRId64 "] discarding data"
+                  "on closed stream with response", stream->id);
+      *err = CURLE_OK;
+      nwritten = (ssize_t)len;
       goto out;
     }
     else if(nwritten == QUICHE_H3_TRANSPORT_ERR_FINAL_SIZE) {
@@ -1203,11 +1257,15 @@ static CURLcode cf_quiche_data_event(struct Curl_cfilter *cf,
     }
     break;
   }
-  case CF_CTRL_DATA_IDLE:
-    result = cf_flush_egress(cf, data);
-    if(result)
-      CURL_TRC_CF(data, cf, "data idle, flush egress -> %d", result);
+  case CF_CTRL_DATA_IDLE: {
+    struct stream_ctx *stream = H3_STREAM_CTX(data);
+    if(stream && !stream->closed) {
+      result = cf_flush_egress(cf, data);
+      if(result)
+        CURL_TRC_CF(data, cf, "data idle, flush egress -> %d", result);
+    }
     break;
+  }
   default:
     break;
   }
