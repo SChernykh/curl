@@ -52,8 +52,6 @@
 #   HAVE_SSL_SET0_WBIO: `SSL_set0_wbio` present in OpenSSL/wolfSSL
 #   HAVE_OPENSSL_SRP: `SSL_CTX_set_srp_username` present in OpenSSL/wolfSSL
 #   HAVE_GNUTLS_SRP: `gnutls_srp_verifier` present in GnuTLS
-#   HAVE_AWSLC: OpenSSL is AWS-LC
-#   HAVE_BORINGSSL: OpenSSL is BoringSSL
 #   HAVE_SSL_CTX_SET_QUIC_METHOD: `SSL_CTX_set_quic_method` present in OpenSSL/wolfSSL
 #   HAVE_QUICHE_CONN_SET_QLOG_FD: `quiche_conn_set_qlog_fd` present in QUICHE
 #   HAVE_ZSTD_CREATEDSTREAM: `ZSTD_createDStream` present in Zstd
@@ -670,7 +668,7 @@ if(USE_NGTCP2)
   if(USE_OPENSSL OR USE_WOLFSSL)
     if(USE_WOLFSSL)
       find_package(NGTCP2 REQUIRED wolfSSL)
-    elseif(HAVE_BORINGSSL)
+    elseif(HAVE_BORINGSSL OR HAVE_AWSLC)
       find_package(NGTCP2 REQUIRED BoringSSL)
     else()
       find_package(NGTCP2 REQUIRED quictls)
@@ -687,9 +685,7 @@ if(USE_NGTCP2)
     if(NOT HAVE_SSL_CTX_SET_QUIC_METHOD)
       message(FATAL_ERROR "QUIC support is missing in OpenSSL/LibreSSL/BoringSSL/wolfSSL. Try setting -DOPENSSL_ROOT_DIR")
     endif()
-
   elseif(USE_GNUTLS)
-    # TODO add GnuTLS support as vtls library.
     find_package(NGTCP2 REQUIRED GnuTLS)
   else()
     message(FATAL_ERROR "ngtcp2 requires OpenSSL, wolfSSL or GnuTLS")
@@ -1165,7 +1161,7 @@ check_symbol_exists(utimes        "${CURL_INCLUDES}" HAVE_UTIMES)
 
 check_symbol_exists(gettimeofday  "${CURL_INCLUDES}" HAVE_GETTIMEOFDAY)
 check_symbol_exists(closesocket   "${CURL_INCLUDES}" HAVE_CLOSESOCKET)
-check_symbol_exists(sigsetjmp     "${CURL_INCLUDES}" HAVE_SIGSETJMP)
+check_symbol_exists(sigsetjmp     "${CURL_INCLUDES};setjmp.h" HAVE_SIGSETJMP)
 check_symbol_exists(getpass_r     "${CURL_INCLUDES}" HAVE_GETPASS_R)
 check_symbol_exists(getpwuid      "${CURL_INCLUDES}" HAVE_GETPWUID)
 check_symbol_exists(getpwuid_r    "${CURL_INCLUDES}" HAVE_GETPWUID_R)
@@ -1175,10 +1171,10 @@ check_symbol_exists(gmtime_r      "${CURL_INCLUDES};stdlib.h;time.h" HAVE_GMTIME
 
 check_symbol_exists(gethostbyname_r "${CURL_INCLUDES}" HAVE_GETHOSTBYNAME_R)
 
-check_symbol_exists(signal         "${CURL_INCLUDES}" HAVE_SIGNAL)
+check_symbol_exists(signal         "${CURL_INCLUDES};signal.h" HAVE_SIGNAL)
 check_symbol_exists(strtoll        "${CURL_INCLUDES};stdlib.h" HAVE_STRTOLL)
 check_symbol_exists(strerror_r     "${CURL_INCLUDES};stdlib.h;string.h" HAVE_STRERROR_R)
-check_symbol_exists(siginterrupt   "${CURL_INCLUDES}" HAVE_SIGINTERRUPT)
+check_symbol_exists(siginterrupt   "${CURL_INCLUDES};signal.h" HAVE_SIGINTERRUPT)
 check_symbol_exists(getaddrinfo    "${CURL_INCLUDES};stdlib.h;string.h" HAVE_GETADDRINFO)
 check_symbol_exists(getifaddrs     "${CURL_INCLUDES};stdlib.h" HAVE_GETIFADDRS)
 check_symbol_exists(freeaddrinfo   "${CURL_INCLUDES}" HAVE_FREEADDRINFO)
