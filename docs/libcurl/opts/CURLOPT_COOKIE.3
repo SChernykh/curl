@@ -62,19 +62,28 @@ automatically.
 
 The application does not have to keep the string around after setting this
 option.
+
+If libcurl is built with PSL (*Public Suffix List*) support, it detects and
+discards cookies that are specified for such suffix domains that should not be
+allowed to have cookies. If libcurl is *not* built with PSL support, it has no
+ability to stop super cookies. PSL support is identified by the
+\fBCURL_VERSION_PSL\fP feature bit returned by \fIcurl_version_info(3)\fP.
 .SH DEFAULT
 NULL, no cookies
 .SH PROTOCOLS
 HTTP
 .SH EXAMPLE
 .nf
-CURL *curl = curl_easy_init();
-if(curl) {
-  curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
+int main(void)
+{
+  CURL *curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
-  curl_easy_setopt(curl, CURLOPT_COOKIE, "tool=curl; fun=yes;");
+    curl_easy_setopt(curl, CURLOPT_COOKIE, "tool=curl; fun=yes;");
 
-  curl_easy_perform(curl);
+    curl_easy_perform(curl);
+  }
 }
 .fi
 .SH AVAILABILITY

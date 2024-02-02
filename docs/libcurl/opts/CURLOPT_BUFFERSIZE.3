@@ -54,16 +54,20 @@ CURL_MAX_WRITE_SIZE (16kB)
 All
 .SH EXAMPLE
 .nf
-CURL *curl = curl_easy_init();
-if(curl) {
-  curl_easy_setopt(curl, CURLOPT_URL, "sftp://example.com/foo.bin");
+int main(void)
+{
+  CURL *curl = curl_easy_init();
+  if(curl) {
+    CURLcode res;
+    curl_easy_setopt(curl, CURLOPT_URL, "sftp://example.com/foo.bin");
 
-  /* ask libcurl to allocate a larger receive buffer */
-  curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 120000L);
+    /* ask libcurl to allocate a larger receive buffer */
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 120000L);
 
-  ret = curl_easy_perform(curl);
+    res = curl_easy_perform(curl);
 
-  curl_easy_cleanup(curl);
+    curl_easy_cleanup(curl);
+  }
 }
 .fi
 .SH AVAILABILITY
@@ -75,4 +79,3 @@ Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
 .BR CURLOPT_MAXFILESIZE (3),
 .BR CURLOPT_UPLOAD_BUFFERSIZE (3),
 .BR CURLOPT_WRITEFUNCTION (3)
-

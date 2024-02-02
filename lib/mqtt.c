@@ -88,7 +88,7 @@ const struct Curl_handler Curl_handler_mqtt = {
   ZERO_NULL,                          /* domore_getsock */
   ZERO_NULL,                          /* perform_getsock */
   ZERO_NULL,                          /* disconnect */
-  ZERO_NULL,                          /* readwrite */
+  ZERO_NULL,                          /* write_resp */
   ZERO_NULL,                          /* connection_check */
   ZERO_NULL,                          /* attach connection */
   PORT_MQTT,                          /* defport */
@@ -524,8 +524,10 @@ static CURLcode mqtt_publish(struct Curl_easy *data)
   char encodedbytes[4];
   curl_off_t postfieldsize = data->set.postfieldsize;
 
-  if(!payload)
+  if(!payload) {
+    DEBUGF(infof(data, "mqtt_publish without payload, return bad arg"));
     return CURLE_BAD_FUNCTION_ARGUMENT;
+  }
   if(postfieldsize < 0)
     payloadlen = strlen(payload);
   else
@@ -616,9 +618,6 @@ static void mqstate(struct Curl_easy *data,
 }
 
 
-/* for the publish packet */
-#define MQTT_HEADER_LEN 5    /* max 5 bytes */
-
 static CURLcode mqtt_read_publish(struct Curl_easy *data, bool *done)
 {
   CURLcode result = CURLE_OK;
@@ -674,10 +673,9 @@ MQTT_SUBACK_COMING:
     data->req.bytecount = 0;
     data->req.size = remlen;
     mq->npacket = remlen; /* get this many bytes */
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case MQTT_PUB_REMAIN: {
     /* read rest of packet, but no more. Cap to buffer size */
-    struct SingleRequest *k = &data->req;
     size_t rest = mq->npacket;
     if(rest > (size_t)data->set.buffer_size)
       rest = (size_t)data->set.buffer_size;
@@ -693,13 +691,8 @@ MQTT_SUBACK_COMING:
       result = CURLE_PARTIAL_FILE;
       goto end;
     }
-    Curl_debug(data, CURLINFO_DATA_IN, (char *)pkt, (size_t)nread);
 
     mq->npacket -= nread;
-    k->bytecount += nread;
-    result = Curl_pgrsSetDownloadCounter(data, k->bytecount);
-    if(result)
-      goto end;
 
     /* if QoS is set, message contains packet id */
 
@@ -785,7 +778,7 @@ static CURLcode mqtt_doing(struct Curl_easy *data, bool *done)
     /* remember the first byte */
     mq->npacket = 0;
     mqstate(data, MQTT_REMAINING_LENGTH, MQTT_NOSTATE);
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case MQTT_REMAINING_LENGTH:
     do {
       result = Curl_read(data, sockfd, (char *)&byte, 1, &nread);

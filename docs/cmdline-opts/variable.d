@@ -38,18 +38,15 @@ content holding null bytes that are not encoded when expanded, causes an
 error.
 
 Available functions:
-.RS
-.TP 15
-**trim**
+
+## trim
 removes all leading and trailing white space.
-.TP
-**json**
+
+## json
 outputs the content using JSON string quoting rules.
-.TP
-**url**
+
+## url
 shows the content URL (percent) encoded.
-.TP
-**b64**
+
+## b64
 expands the variable base64 encoded
-.RE
-.IP

@@ -42,7 +42,7 @@
 #define NUM_OPEN      (FD_SETSIZE + 10)
 #define NUM_NEEDED    (NUM_OPEN + SAFETY_MARGIN)
 
-#if defined(WIN32) || defined(_WIN32) || defined(MSDOS)
+#if defined(_WIN32) || defined(MSDOS)
 #define DEV_NULL "NUL"
 #else
 #define DEV_NULL "/dev/null"
@@ -98,6 +98,11 @@ static int fopen_works(void)
   }
   return ret;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
 
 static int rlimit(int keep_open)
 {
@@ -458,6 +463,10 @@ static int rlimit(int keep_open)
 
   return 0;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 int test(char *URL)
 {

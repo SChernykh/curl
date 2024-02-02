@@ -21,22 +21,25 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
+/* <DESC>
+ * GET a range only of a HTTP resource
+ * </DESC>
+ */
+#include <curl/curl.h>
 
-#ifdef CURL_STATICLIB
-#  define LIBHOSTNAME_EXTERN
-#elif defined(WIN32)
-#  define LIBHOSTNAME_EXTERN  __declspec(dllexport)
-#elif defined(CURL_HIDDEN_SYMBOLS)
-#  define LIBHOSTNAME_EXTERN CURL_EXTERN_SYMBOL
-#else
-#  define LIBHOSTNAME_EXTERN
-#endif
+int main(void)
+{
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-#ifdef USE_WINSOCK
-#  define FUNCALLCONV __stdcall
-#else
-#  define FUNCALLCONV
-#endif
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "https://curl.se/");
+    curl_easy_setopt(curl, CURLOPT_RANGE, "200-999");
 
-LIBHOSTNAME_EXTERN int FUNCALLCONV
-  gethostname(char *name, GETHOSTNAME_TYPE_ARG2 namelen);
+    res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+  }
+
+  return (int)res;
+}

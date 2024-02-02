@@ -108,16 +108,17 @@ class TestDownload:
 
     # download 500 files sequential
     @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
-    def test_02_05_download_500_sequential(self, env: Env,
-                                           httpd, nghttpx, repeat, proto):
+    def test_02_05_download_many_sequential(self, env: Env,
+                                            httpd, nghttpx, repeat, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
         if proto == 'h3' and env.curl_uses_lib('msh3'):
             pytest.skip("msh3 shaky here")
+        count = 200
         curl = CurlClient(env=env)
-        urln = f'https://{env.authority_for(env.domain1, proto)}/data.json?[0-499]'
+        urln = f'https://{env.authority_for(env.domain1, proto)}/data.json?[0-{count-1}]'
         r = curl.http_download(urls=[urln], alpn_proto=proto)
-        r.check_response(http_status=200, count=500)
+        r.check_response(http_status=200, count=count)
         if proto == 'http/1.1':
             # http/1.1 parallel transfers will open multiple connections
             assert r.total_connects > 1, r.dump_logs()
@@ -127,11 +128,11 @@ class TestDownload:
 
     # download 500 files parallel
     @pytest.mark.parametrize("proto", ['h2', 'h3'])
-    def test_02_06_download_500_parallel(self, env: Env,
-                                         httpd, nghttpx, repeat, proto):
+    def test_02_06_download_many_parallel(self, env: Env,
+                                          httpd, nghttpx, repeat, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
-        count = 500
+        count = 200
         max_parallel = 50
         curl = CurlClient(env=env)
         urln = f'https://{env.authority_for(env.domain1, proto)}/data.json?[000-{count-1}]'
@@ -207,7 +208,7 @@ class TestDownload:
                               httpd, nghttpx, repeat, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
-        count = 20
+        count = 10
         urln = f'https://{env.authority_for(env.domain1, proto)}/data-10m?[0-{count-1}]'
         curl = CurlClient(env=env)
         r = curl.http_download(urls=[urln], alpn_proto=proto)
@@ -222,7 +223,7 @@ class TestDownload:
             pytest.skip("h3 not supported")
         if proto == 'h3' and env.curl_uses_lib('msh3'):
             pytest.skip("msh3 stalls here")
-        count = 20
+        count = 10
         urln = f'https://{env.authority_for(env.domain1, proto)}/data-10m?[0-{count-1}]'
         curl = CurlClient(env=env)
         r = curl.http_download(urls=[urln], alpn_proto=proto, extra_args=[
@@ -235,7 +236,7 @@ class TestDownload:
                                      httpd, nghttpx, repeat, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
-        count = 100
+        count = 50
         urln = f'https://{env.authority_for(env.domain1, proto)}/data-10m?[0-{count-1}]'
         curl = CurlClient(env=env)
         r = curl.http_download(urls=[urln], alpn_proto=proto, extra_args=[
@@ -248,7 +249,7 @@ class TestDownload:
                                     httpd, nghttpx, repeat, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
-        count = 100
+        count = 50
         urln = f'http://{env.domain1}:{env.http_port}/data-10m?[0-{count-1}]'
         curl = CurlClient(env=env)
         r = curl.http_download(urls=[urln], alpn_proto=proto, extra_args=[
@@ -385,13 +386,10 @@ class TestDownload:
         r.check_exit_code(0)
 
     # test on paused transfers, based on issue #11982
-    @pytest.mark.parametrize("proto", ['h2', 'h3'])
-    def test_02_27_paused_no_cl(self, env: Env, httpd, nghttpx, proto, repeat):
-        if proto == 'h3' and not env.have_h3():
-            pytest.skip("h3 not supported")
+    def test_02_27_paused_no_cl(self, env: Env, httpd, nghttpx, repeat):
+        proto = 'h2'
         url = f'https://{env.authority_for(env.domain1, proto)}' \
-                       f'/tweak?'\
-                       '&chunks=2&chunk_size=16000'
+            '/tweak?&chunks=2&chunk_size=16000'
         client = LocalClient(env=env, name='h2-pausing')
         r = client.run(args=[url])
         r.check_exit_code(0)

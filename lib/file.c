@@ -69,7 +69,7 @@
 #include "curl_memory.h"
 #include "memdebug.h"
 
-#if defined(WIN32) || defined(MSDOS) || defined(__EMX__)
+#if defined(_WIN32) || defined(MSDOS) || defined(__EMX__)
 #define DOS_FILESYSTEM 1
 #elif defined(__amigaos4__)
 #define AMIGA_FILESYSTEM 1
@@ -113,7 +113,7 @@ const struct Curl_handler Curl_handler_file = {
   ZERO_NULL,                            /* domore_getsock */
   ZERO_NULL,                            /* perform_getsock */
   file_disconnect,                      /* disconnect */
-  ZERO_NULL,                            /* readwrite */
+  ZERO_NULL,                            /* write_resp */
   ZERO_NULL,                            /* connection_check */
   ZERO_NULL,                            /* attach connection */
   0,                                    /* defport */
@@ -414,13 +414,10 @@ static CURLcode file_do(struct Curl_easy *data, bool *done)
   bool size_known;
   bool fstated = FALSE;
   char *buf = data->state.buffer;
-  curl_off_t bytecount = 0;
   int fd;
   struct FILEPROTO *file;
 
   *done = TRUE; /* unconditionally */
-
-  Curl_pgrsStartNow(data);
 
   if(data->state.upload)
     return file_upload(data);
@@ -563,15 +560,10 @@ static CURLcode file_do(struct Curl_easy *data, bool *done)
     if(nread <= 0 || (size_known && (expected_size == 0)))
       break;
 
-    bytecount += nread;
     if(size_known)
       expected_size -= nread;
 
     result = Curl_client_write(data, CLIENTWRITE_BODY, buf, nread);
-    if(result)
-      return result;
-
-    result = Curl_pgrsSetDownloadCounter(data, bytecount);
     if(result)
       return result;
 

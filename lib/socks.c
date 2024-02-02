@@ -353,9 +353,10 @@ static CURLproxycode do_SOCKS4(struct Curl_cfilter *cf,
         return CURLPX_OK;
       }
     }
-    /* FALLTHROUGH */
+    FALLTHROUGH();
+  case CONNECT_RESOLVED:
 CONNECT_RESOLVED:
-  case CONNECT_RESOLVED: {
+  {
     struct Curl_addrinfo *hp = NULL;
     /*
      * We cannot use 'hostent' as a struct that Curl_resolv() returns.  It
@@ -393,17 +394,20 @@ CONNECT_RESOLVED:
     if(!hp)
       return CURLPX_RESOLVE_HOST;
   }
-    /* FALLTHROUGH */
-CONNECT_REQ_INIT:
+    FALLTHROUGH();
   case CONNECT_REQ_INIT:
+CONNECT_REQ_INIT:
     /*
      * This is currently not supporting "Identification Protocol (RFC1413)".
      */
     socksreq[8] = 0; /* ensure empty userid is NUL-terminated */
     if(sx->proxy_user) {
       size_t plen = strlen(sx->proxy_user);
-      if(plen >= (size_t)data->set.buffer_size - 8) {
-        failf(data, "Too long SOCKS proxy user name, can't use");
+      if(plen > 255) {
+        /* there is no real size limit to this field in the protocol, but
+           SOCKS5 limits the proxy user field to 255 bytes and it seems likely
+           that a longer field is either a mistake or malicious input */
+        failf(data, "Too long SOCKS proxy user name");
         return CURLPX_LONG_USER;
       }
       /* copy the proxy name WITH trailing zero */
@@ -426,7 +430,8 @@ CONNECT_REQ_INIT:
         socksreq[7] = 1;
         /* append hostname */
         hostnamelen = strlen(sx->hostname) + 1; /* length including NUL */
-        if(hostnamelen <= 255)
+        if((hostnamelen <= 255) &&
+           (packetsize + hostnamelen < data->set.buffer_size))
           strcpy((char *)socksreq + packetsize, sx->hostname);
         else {
           failf(data, "SOCKS4: too long host name");
@@ -438,7 +443,7 @@ CONNECT_REQ_INIT:
       sx->outstanding = packetsize;
       sxstate(sx, data, CONNECT_REQ_SENDING);
     }
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_REQ_SENDING:
     /* Send request */
     presult = socks_state_send(cf, sx, data, CURLPX_SEND_CONNECT,
@@ -454,7 +459,7 @@ CONNECT_REQ_INIT:
     sx->outp = socksreq;
     sxstate(sx, data, CONNECT_SOCKS_READ);
 
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_SOCKS_READ:
     /* Receive response */
     presult = socks_state_recv(cf, sx, data, CURLPX_RECV_CONNECT,
@@ -636,12 +641,12 @@ static CURLproxycode do_SOCKS5(struct Curl_cfilter *cf,
       /* remain in sending state */
       return CURLPX_OK;
     }
-    /* FALLTHROUGH */
-CONNECT_SOCKS_READ_INIT:
+    FALLTHROUGH();
   case CONNECT_SOCKS_READ_INIT:
+CONNECT_SOCKS_READ_INIT:
     sx->outstanding = 2; /* expect two bytes */
     sx->outp = socksreq; /* store it here */
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_SOCKS_READ:
     presult = socks_state_recv(cf, sx, data, CURLPX_RECV_CONNECT,
                                "initial SOCKS5 response");
@@ -745,7 +750,7 @@ CONNECT_AUTH_INIT:
     sx->outstanding = len;
     sx->outp = socksreq;
   }
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_AUTH_SEND:
     presult = socks_state_send(cf, sx, data, CURLPX_SEND_AUTH,
                                "SOCKS5 sub-negotiation request");
@@ -758,7 +763,7 @@ CONNECT_AUTH_INIT:
     sx->outp = socksreq;
     sx->outstanding = 2;
     sxstate(sx, data, CONNECT_AUTH_READ);
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_AUTH_READ:
     presult = socks_state_recv(cf, sx, data, CURLPX_RECV_AUTH,
                                "SOCKS5 sub-negotiation response");
@@ -777,9 +782,9 @@ CONNECT_AUTH_INIT:
 
     /* Everything is good so far, user was authenticated! */
     sxstate(sx, data, CONNECT_REQ_INIT);
-    /* FALLTHROUGH */
-CONNECT_REQ_INIT:
+    FALLTHROUGH();
   case CONNECT_REQ_INIT:
+CONNECT_REQ_INIT:
     if(socks5_resolve_local) {
       enum resolve_t rc = Curl_resolv(data, sx->hostname, sx->remote_port,
                                       TRUE, &dns);
@@ -816,13 +821,23 @@ CONNECT_REQ_INIT:
         return CURLPX_OK;
       }
     }
-    /* FALLTHROUGH */
+    FALLTHROUGH();
+  case CONNECT_RESOLVED:
 CONNECT_RESOLVED:
-  case CONNECT_RESOLVED: {
-    char dest[MAX_IPADR_LEN] = "unknown";  /* printable address */
+  {
+    char dest[MAX_IPADR_LEN];  /* printable address */
     struct Curl_addrinfo *hp = NULL;
     if(dns)
       hp = dns->addr;
+#ifdef ENABLE_IPV6
+    if(data->set.ipver != CURL_IPRESOLVE_WHATEVER) {
+      int wanted_family = data->set.ipver == CURL_IPRESOLVE_V4 ?
+        AF_INET : AF_INET6;
+      /* scan for the first proper address */
+      while(hp && (hp->ai_family != wanted_family))
+        hp = hp->ai_next;
+    }
+#endif
     if(!hp) {
       failf(data, "Failed to resolve \"%s\" for SOCKS5 connect.",
             sx->hostname);
@@ -910,10 +925,10 @@ CONNECT_RESOLVE_REMOTE:
       infof(data, "SOCKS5 connect to %s:%d (remotely resolved)",
             sx->hostname, sx->remote_port);
     }
-    /* FALLTHROUGH */
+    FALLTHROUGH();
 
-CONNECT_REQ_SEND:
   case CONNECT_REQ_SEND:
+CONNECT_REQ_SEND:
     /* PORT MSB */
     socksreq[len++] = (unsigned char)((sx->remote_port >> 8) & 0xff);
     /* PORT LSB */
@@ -928,7 +943,7 @@ CONNECT_REQ_SEND:
     sx->outp = socksreq;
     sx->outstanding = len;
     sxstate(sx, data, CONNECT_REQ_SENDING);
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_REQ_SENDING:
     presult = socks_state_send(cf, sx, data, CURLPX_SEND_REQUEST,
                                "SOCKS5 connect request");
@@ -947,7 +962,7 @@ CONNECT_REQ_SEND:
     sx->outstanding = 10; /* minimum packet size is 10 */
     sx->outp = socksreq;
     sxstate(sx, data, CONNECT_REQ_READ);
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_REQ_READ:
     presult = socks_state_recv(cf, sx, data, CURLPX_RECV_REQACK,
                                "SOCKS5 connect request ack");
@@ -1036,7 +1051,7 @@ CONNECT_REQ_SEND:
 #if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
     }
 #endif
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case CONNECT_REQ_READ_MORE:
     presult = socks_state_recv(cf, sx, data, CURLPX_RECV_ADDRESS,
                                "SOCKS5 connect request address");
@@ -1119,7 +1134,7 @@ static CURLcode socks_proxy_cf_connect(struct Curl_cfilter *cf,
     return result;
 
   if(!sx) {
-    sx = calloc(sizeof(*sx), 1);
+    sx = calloc(1, sizeof(*sx));
     if(!sx)
       return CURLE_OUT_OF_MEMORY;
     cf->ctx = sx;
@@ -1157,32 +1172,29 @@ static CURLcode socks_proxy_cf_connect(struct Curl_cfilter *cf,
   return result;
 }
 
-static int socks_cf_get_select_socks(struct Curl_cfilter *cf,
+static void socks_cf_adjust_pollset(struct Curl_cfilter *cf,
                                      struct Curl_easy *data,
-                                     curl_socket_t *socks)
+                                     struct easy_pollset *ps)
 {
   struct socks_state *sx = cf->ctx;
-  int fds;
 
-  fds = cf->next->cft->get_select_socks(cf->next, data, socks);
-  if(!fds && cf->next->connected && !cf->connected && sx) {
+  if(!cf->connected && sx) {
     /* If we are not connected, the filter below is and has nothing
      * to wait on, we determine what to wait for. */
-    socks[0] = Curl_conn_cf_get_socket(cf, data);
+    curl_socket_t sock = Curl_conn_cf_get_socket(cf, data);
     switch(sx->state) {
     case CONNECT_RESOLVING:
     case CONNECT_SOCKS_READ:
     case CONNECT_AUTH_READ:
     case CONNECT_REQ_READ:
     case CONNECT_REQ_READ_MORE:
-      fds = GETSOCK_READSOCK(0);
+      Curl_pollset_set_in_only(data, ps, sock);
       break;
     default:
-      fds = GETSOCK_WRITESOCK(0);
+      Curl_pollset_set_out_only(data, ps, sock);
       break;
     }
   }
-  return fds;
 }
 
 static void socks_proxy_cf_close(struct Curl_cfilter *cf,
@@ -1227,7 +1239,7 @@ struct Curl_cftype Curl_cft_socks_proxy = {
   socks_proxy_cf_connect,
   socks_proxy_cf_close,
   socks_cf_get_host,
-  socks_cf_get_select_socks,
+  socks_cf_adjust_pollset,
   Curl_cf_def_data_pending,
   Curl_cf_def_send,
   Curl_cf_def_recv,

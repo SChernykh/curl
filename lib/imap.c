@@ -97,7 +97,8 @@ static CURLcode imap_doing(struct Curl_easy *data, bool *dophase_done);
 static CURLcode imap_setup_connection(struct Curl_easy *data,
                                       struct connectdata *conn);
 static char *imap_atom(const char *str, bool escape_only);
-static CURLcode imap_sendf(struct Curl_easy *data, const char *fmt, ...);
+static CURLcode imap_sendf(struct Curl_easy *data, const char *fmt, ...)
+  CURL_PRINTF(2, 3);
 static CURLcode imap_parse_url_options(struct connectdata *conn);
 static CURLcode imap_parse_url_path(struct Curl_easy *data);
 static CURLcode imap_parse_custom_request(struct Curl_easy *data);
@@ -129,7 +130,7 @@ const struct Curl_handler Curl_handler_imap = {
   ZERO_NULL,                        /* domore_getsock */
   ZERO_NULL,                        /* perform_getsock */
   imap_disconnect,                  /* disconnect */
-  ZERO_NULL,                        /* readwrite */
+  ZERO_NULL,                        /* write_resp */
   ZERO_NULL,                        /* connection_check */
   ZERO_NULL,                        /* attach connection */
   PORT_IMAP,                        /* defport */
@@ -158,7 +159,7 @@ const struct Curl_handler Curl_handler_imaps = {
   ZERO_NULL,                        /* domore_getsock */
   ZERO_NULL,                        /* perform_getsock */
   imap_disconnect,                  /* disconnect */
-  ZERO_NULL,                        /* readwrite */
+  ZERO_NULL,                        /* write_resp */
   ZERO_NULL,                        /* connection_check */
   ZERO_NULL,                        /* attach connection */
   PORT_IMAPS,                       /* defport */
@@ -1194,8 +1195,6 @@ static CURLcode imap_state_fetch_resp(struct Curl_easy *data,
       if(result)
         return result;
 
-      data->req.bytecount += chunk;
-
       infof(data, "Written %zu bytes, %" CURL_FORMAT_CURL_OFF_TU
             " bytes are left for transfer", chunk, size - chunk);
 
@@ -1222,7 +1221,7 @@ static CURLcode imap_state_fetch_resp(struct Curl_easy *data,
       data->req.maxdownload = size;
       /* force a recv/send check of this connection, as the data might've been
        read off the socket already */
-      data->conn->cselect_bits = CURL_CSELECT_IN;
+      data->state.select_bits = CURL_CSELECT_IN;
       Curl_setup_transfer(data, FIRSTSOCKET, size, FALSE, -1);
     }
   }
@@ -1378,7 +1377,6 @@ static CURLcode imap_statemachine(struct Curl_easy *data,
       break;
 
     case IMAP_LOGOUT:
-      /* fallthrough, just stop! */
     default:
       /* internal error */
       imap_state(data, IMAP_STOP);
@@ -1430,7 +1428,7 @@ static CURLcode imap_init(struct Curl_easy *data)
   CURLcode result = CURLE_OK;
   struct IMAP *imap;
 
-  imap = data->req.p.imap = calloc(sizeof(struct IMAP), 1);
+  imap = data->req.p.imap = calloc(1, sizeof(struct IMAP));
   if(!imap)
     result = CURLE_OUT_OF_MEMORY;
 
@@ -1797,7 +1795,14 @@ static CURLcode imap_sendf(struct Curl_easy *data, const char *fmt, ...)
   if(!result) {
     va_list ap;
     va_start(ap, fmt);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
     result = Curl_pp_vsendf(data, &imapc->pp, Curl_dyn_ptr(&imapc->dyn), ap);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
     va_end(ap);
   }
   return result;

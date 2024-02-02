@@ -48,8 +48,14 @@ my %protolong;
 my %catlong;
 
 use POSIX qw(strftime);
-my $date = strftime "%B %d %Y", localtime;
-my $year = strftime "%Y", localtime;
+my @ts;
+if (defined($ENV{SOURCE_DATE_EPOCH})) {
+    @ts = localtime($ENV{SOURCE_DATE_EPOCH});
+} else {
+    @ts = localtime;
+}
+my $date = strftime "%B %d %Y", @ts;
+my $year = strftime "%Y", @ts;
 my $version = "unknown";
 my $globals;
 
@@ -92,9 +98,9 @@ sub printdesc {
         }
         if($d !~ /^.\\"/) {
             # **bold**
-            $d =~ s/\*\*([^ ]*)\*\*/\\fB$1\\fP/g;
+            $d =~ s/\*\*(.*?)\*\*/\\fB$1\\fP/g;
             # *italics*
-            $d =~ s/\*([^ ]*)\*/\\fI$1\\fP/g;
+            $d =~ s/\*(.*?)\*/\\fI$1\\fP/g;
         }
         if(!$exam && ($d =~ /^ /)) {
             # start of example
@@ -213,6 +219,7 @@ sub single {
     my @examples; # there can be more than one
     my $magic; # cmdline special option
     my $line;
+    my $dline;
     my $multi;
     my $scope;
     my $experimental;
@@ -313,10 +320,42 @@ sub single {
         }
     }
     my @desc;
+    my $tablemode = 0;
     while(<F>) {
+        $line++;
+        $dline++;
+        if(($dline == 1) && ($_ =~ /^[\r\n]*\z/)) {
+            print STDERR "$f:$line:1:ERROR: unnecessary leading blank line\n";
+            return 3;
+        }
+        if(/^## (.*)/) {
+            if(!$tablemode) {
+                push @desc, ".RS\n";
+                $tablemode = 1;
+            }
+            push @desc, ".IP \"\\fB$1\\fP\"\n";
+            next;
+        }
+        elsif(/^##/) {
+            if($tablemode) {
+                # end of table
+                push @desc, ".RE\n.IP\n";
+                $tablmode = 0;
+            }
+            next;
+        }
+        elsif(/^\.(IP|RS|RE)/) {
+            my ($cmd) = ($1);
+            print STDERR "$f:$line:1:ERROR: $cmd detected, use ##-style\n";
+            return 3;
+        }
         push @desc, $_;
     }
     close(F);
+    if($tablemode) {
+        # end of table
+        push @desc, ".RE\n.IP\n";
+    }
     my $opt;
 
     if(defined($short) && $long) {
@@ -669,6 +708,16 @@ sub listglobals {
     }
 }
 
+sub noext {
+    my $in = $_[0];
+    $in =~ s/\.d//;
+    return $in;
+}
+
+sub sortnames {
+    return noext($a) cmp noext($b);
+}
+
 sub mainpage {
     my (@files) = @_;
     my $ret;
@@ -676,7 +725,7 @@ sub mainpage {
     header("page-header");
 
     # output docs for all options
-    foreach my $f (sort @files) {
+    foreach my $f (sort sortnames @files) {
         $ret += single($f, 0);
     }
 

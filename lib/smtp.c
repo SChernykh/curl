@@ -130,7 +130,7 @@ const struct Curl_handler Curl_handler_smtp = {
   ZERO_NULL,                        /* domore_getsock */
   ZERO_NULL,                        /* perform_getsock */
   smtp_disconnect,                  /* disconnect */
-  ZERO_NULL,                        /* readwrite */
+  ZERO_NULL,                        /* write_resp */
   ZERO_NULL,                        /* connection_check */
   ZERO_NULL,                        /* attach connection */
   PORT_SMTP,                        /* defport */
@@ -159,7 +159,7 @@ const struct Curl_handler Curl_handler_smtps = {
   ZERO_NULL,                        /* domore_getsock */
   ZERO_NULL,                        /* perform_getsock */
   smtp_disconnect,                  /* disconnect */
-  ZERO_NULL,                        /* readwrite */
+  ZERO_NULL,                        /* write_resp */
   ZERO_NULL,                        /* connection_check */
   ZERO_NULL,                        /* attach connection */
   PORT_SMTPS,                       /* defport */
@@ -1268,7 +1268,6 @@ static CURLcode smtp_statemachine(struct Curl_easy *data,
       break;
 
     case SMTP_QUIT:
-      /* fallthrough, just stop! */
     default:
       /* internal error */
       smtp_state(data, SMTP_STOP);
@@ -1320,7 +1319,7 @@ static CURLcode smtp_init(struct Curl_easy *data)
   CURLcode result = CURLE_OK;
   struct SMTP *smtp;
 
-  smtp = data->req.p.smtp = calloc(sizeof(struct SMTP), 1);
+  smtp = data->req.p.smtp = calloc(1, sizeof(struct SMTP));
   if(!smtp)
     result = CURLE_OUT_OF_MEMORY;
 

@@ -174,7 +174,7 @@ curl_headers_msg="enabled (--disable-headers-api)"
      curl_ws_msg="no      (--enable-websockets)"
     ssl_backends=
      curl_h1_msg="enabled (internal)"
-     curl_h2_msg="no      (--with-nghttp2, --with-hyper)"
+     curl_h2_msg="no      (--with-nghttp2)"
      curl_h3_msg="no      (--with-ngtcp2 --with-nghttp3, --with-quiche, --with-msh3)"
 
 enable_altsvc="yes"
@@ -503,6 +503,7 @@ dnl platform/compiler/architecture specific checks/flags
 dnl **********************************************************************
 
 CURL_CHECK_COMPILER
+CURL_CHECK_NATIVE_WINDOWS
 CURL_SET_COMPILER_BASIC_OPTS
 CURL_SET_COMPILER_DEBUG_OPTS
 CURL_SET_COMPILER_OPTIMIZE_OPTS
@@ -583,25 +584,6 @@ dnl **********************************************************************
 dnl Compilation based checks should not be done before this point.
 dnl **********************************************************************
 
-dnl **********************************************************************
-dnl Make sure that our checks for headers windows.h winsock2.h
-dnl and ws2tcpip.h take precedence over any other further checks which
-dnl could be done later using AC_CHECK_HEADER or AC_CHECK_HEADERS for
-dnl this specific header files. And do them before its results are used.
-dnl **********************************************************************
-
-CURL_CHECK_HEADER_WINDOWS
-CURL_CHECK_NATIVE_WINDOWS
-case X-"$curl_cv_native_windows" in
-  X-yes)
-    CURL_CHECK_HEADER_WINSOCK2
-    CURL_CHECK_HEADER_WS2TCPIP
-    ;;
-  *)
-    curl_cv_header_winsock2_h="no"
-    curl_cv_header_ws2tcpip_h="no"
-    ;;
-esac
 CURL_CHECK_WIN32_LARGEFILE
 CURL_CHECK_WIN32_CRYPTO
 
@@ -803,7 +785,6 @@ if test X"$want_hyper" != Xno; then
           experimental="$experimental Hyper"
           AC_MSG_NOTICE([Hyper support is experimental])
           curl_h1_msg="enabled (Hyper)"
-          curl_h2_msg=$curl_h1_msg
           HYPER_ENABLED=1
           AC_DEFINE(USE_HYPER, 1, [if hyper is in use])
           AC_SUBST(USE_HYPER, [1])
@@ -1131,24 +1112,19 @@ fi
 if test "$HAVE_GETHOSTBYNAME" != "1"
 then
   dnl This is for winsock systems
-  if test "$curl_cv_header_windows_h" = "yes"; then
-    if test "$curl_cv_header_winsock2_h" = "yes"; then
-      winsock_LIB="-lws2_32"
-    fi
+  if test "$curl_cv_native_windows" = "yes"; then
+    winsock_LIB="-lws2_32"
     if test ! -z "$winsock_LIB"; then
       my_ac_save_LIBS=$LIBS
       LIBS="$winsock_LIB $LIBS"
       AC_MSG_CHECKING([for gethostbyname in $winsock_LIB])
       AC_LINK_IFELSE([
         AC_LANG_PROGRAM([[
-#ifdef HAVE_WINDOWS_H
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
-#ifdef HAVE_WINSOCK2_H
 #include <winsock2.h>
-#endif
 #endif
         ]],[[
           gethostbyname("localhost");
@@ -1669,7 +1645,7 @@ AS_HELP_STRING([--disable-ipv6],[Disable IPv6 support]),
   AC_RUN_IFELSE([AC_LANG_SOURCE([[
 /* are AF_INET6 and sockaddr_in6 available? */
 #include <sys/types.h>
-#ifdef HAVE_WINSOCK2_H
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
@@ -1679,15 +1655,12 @@ AS_HELP_STRING([--disable-ipv6],[Disable IPv6 support]),
 # include <netinet/in6.h>
 #endif
 #endif
-#include <stdlib.h> /* for exit() */
-main()
+
+int main(void)
 {
  struct sockaddr_in6 s;
  (void)s;
- if (socket(AF_INET6, SOCK_STREAM, 0) < 0)
-   exit(1);
- else
-   exit(0);
+ return socket(AF_INET6, SOCK_STREAM, 0) < 0;
 }
 ]])
 ],
@@ -1708,7 +1681,7 @@ if test "$ipv6" = yes; then
   AC_MSG_CHECKING([if struct sockaddr_in6 has sin6_scope_id member])
   AC_COMPILE_IFELSE([ AC_LANG_PROGRAM([[
 #include <sys/types.h>
-#ifdef HAVE_WINSOCK2_H
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
@@ -1851,10 +1824,7 @@ AC_INCLUDES_DEFAULT
       if test "x$not_mit" = "x1"; then
         dnl MIT not found, check for Heimdal
         AC_CHECK_HEADER(gssapi.h,
-            [
-              dnl found
-              AC_DEFINE(HAVE_GSSHEIMDAL, 1, [if you have Heimdal])
-            ],
+            [],
             [
               dnl no header found, disabling GSS
               want_gss=no
@@ -1863,7 +1833,6 @@ AC_INCLUDES_DEFAULT
           )
       else
         dnl MIT found
-        AC_DEFINE(HAVE_GSSMIT, 1, [if you have MIT Kerberos])
         dnl check if we have a really old MIT Kerberos version (<= 1.2)
         AC_MSG_CHECKING([if GSS-API headers declare GSS_C_NT_HOSTBASED_SERVICE])
         AC_COMPILE_IFELSE([
@@ -2085,17 +2054,16 @@ dnl **********************************************************************
 
 AC_ARG_WITH(libpsl,
            AS_HELP_STRING([--without-libpsl],
-           [disable support for libpsl cookie checking]),
+           [disable support for libpsl]),
            with_libpsl=$withval,
            with_libpsl=yes)
+curl_psl_msg="no      (libpsl disabled)"
 if test $with_libpsl != "no"; then
   AC_SEARCH_LIBS(psl_builtin, psl,
     [curl_psl_msg="enabled";
      AC_DEFINE([USE_LIBPSL], [1], [PSL support enabled])
      ],
-    [curl_psl_msg="no      (libpsl not found)";
-     AC_MSG_WARN([libpsl was not found])
-     ]
+    [AC_MSG_ERROR([libpsl was not found]) ]
   )
 fi
 AM_CONDITIONAL([USE_LIBPSL], [test "$curl_psl_msg" = "enabled"])
@@ -2808,6 +2776,11 @@ esac
 
 curl_tcp2_msg="no      (--with-ngtcp2)"
 if test X"$want_tcp2" != Xno; then
+
+  if test "$QUIC_ENABLED" != "yes"; then
+    AC_MSG_ERROR([the detected TLS library does not support QUIC, making --with-ngtcp2 a no-no])
+  fi
+
   dnl backup the pre-ngtcp2 variables
   CLEANLDFLAGS="$LDFLAGS"
   CLEANCPPFLAGS="$CPPFLAGS"
@@ -3062,6 +3035,11 @@ esac
 
 curl_http3_msg="no      (--with-nghttp3)"
 if test X"$want_nghttp3" != Xno; then
+
+  if test "$NGTCP2_ENABLED" != "1"; then
+    AC_MSG_ERROR([--with-nghttp3 also requires --with-ntcp2])
+  fi
+
   dnl backup the pre-nghttp3 variables
   CLEANLDFLAGS="$LDFLAGS"
   CLEANCPPFLAGS="$CPPFLAGS"
@@ -3099,7 +3077,6 @@ if test X"$want_nghttp3" != Xno; then
           CURL_LIBRARY_PATH="$CURL_LIBRARY_PATH:$DIR_NGHTTP3"
           export CURL_LIBRARY_PATH
           AC_MSG_NOTICE([Added $DIR_NGHTTP3 to CURL_LIBRARY_PATH])
-          experimental="$experimental HTTP3"
        )
       ],
         dnl not found, revert back to clean variables
@@ -3152,6 +3129,10 @@ case "$OPT_QUICHE" in
 esac
 
 if test X"$want_quiche" != Xno; then
+
+  if test "$QUIC_ENABLED" != "yes"; then
+    AC_MSG_ERROR([the detected TLS library does not support QUIC, making --with-quiche a no-no])
+  fi
 
   if test "$NGHTTP3_ENABLED" = 1; then
     AC_MSG_ERROR([--with-quiche and --with-ngtcp2 are mutually exclusive])
@@ -3250,6 +3231,16 @@ case "$OPT_MSH3" in
 esac
 
 if test X"$want_msh3" != Xno; then
+
+  dnl msh3 on non-Windows needs an OpenSSL with the QUIC API
+  if test "$curl_cv_native_windows" != "yes"; then
+    if test "$QUIC_ENABLED" != "yes"; then
+      AC_MSG_ERROR([the detected TLS library does not support QUIC, making --with-msh3 a no-no])
+    fi
+    if test "$OPENSSL_ENABLED" != "1"; then
+      AC_MSG_ERROR([msh3 requires OpenSSL])
+    fi
+  fi
 
   if test "$NGHTTP3_ENABLED" = 1; then
     AC_MSG_ERROR([--with-msh3 and --with-ngtcp2 are mutually exclusive])
@@ -3418,7 +3409,6 @@ dnl default includes
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
-CURL_CHECK_VARIADIC_MACROS
 AC_TYPE_SIZE_T
 
 CURL_CHECK_STRUCT_TIMEVAL
@@ -3476,6 +3466,12 @@ AC_CHECK_TYPE(sa_family_t,
      AC_DEFINE(CURL_SA_FAMILY_T, ADDRESS_FAMILY, [IP address type in sockaddr]),
      AC_DEFINE(CURL_SA_FAMILY_T, unsigned short, [IP address type in sockaddr]),
     [
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
@@ -3518,8 +3514,6 @@ CURL_RUN_IFELSE(
   dnl cross-compiling, most systems are unsigned
   AC_MSG_RESULT([no])
 ])
-
-CURL_CONFIGURE_PULL_SYS_POLL
 
 TYPE_IN_ADDR_T
 
@@ -3581,11 +3575,9 @@ AC_CHECK_DECLS([getpwuid_r], [], [AC_DEFINE(HAVE_DECL_GETPWUID_R_MISSING, 1, "Se
         [[#include <pwd.h>
           #include <sys/types.h>]])
 
-
 AC_CHECK_FUNCS([\
   _fseeki64 \
   arc4random \
-  fchmod \
   fnmatch \
   fseeko \
   geteuid \
@@ -3627,6 +3619,15 @@ AC_CHECK_FUNCS([\
     ])
   fi
 ])
+
+dnl On Android, the only way to know if fseeko can be used is to see if it is
+dnl declared or not (for this API level), as the symbol always exists in the
+dnl lib.
+AC_CHECK_DECL([fseeko],
+              [AC_DEFINE([HAVE_DECL_FSEEKO], [1],
+               [Define to 1 if you have the fseeko declaration])],
+              [],
+              [[#include <stdio.h>]])
 
 CURL_CHECK_NONBLOCKING_SOCKET
 
@@ -4570,7 +4571,7 @@ if test "x$USE_TLS_SRP" = "x1"; then
   SUPPORT_FEATURES="$SUPPORT_FEATURES TLS-SRP"
 fi
 
-if test "x$USE_NGHTTP2" = "x1" -o "x$USE_HYPER" = "x1"; then
+if test "x$USE_NGHTTP2" = "x1"; then
   SUPPORT_FEATURES="$SUPPORT_FEATURES HTTP2"
 fi
 
@@ -4583,20 +4584,31 @@ if test "x$CURL_WITH_MULTI_SSL" = "x1"; then
   SUPPORT_FEATURES="$SUPPORT_FEATURES MultiSSL"
 fi
 
+AC_MSG_CHECKING([if this build supports HTTPS-proxy])
 dnl if not explicitly turned off, HTTPS-proxy comes with some TLS backends
-if test "x$https_proxy" != "xno"; then
-  if test "x$OPENSSL_ENABLED" = "x1" \
-      -o "x$GNUTLS_ENABLED" = "x1" \
-      -o "x$SECURETRANSPORT_ENABLED" = "x1" \
-      -o "x$RUSTLS_ENABLED" = "x1" \
-      -o "x$BEARSSL_ENABLED" = "x1" \
-      -o "x$SCHANNEL_ENABLED" = "x1" \
-      -o "x$GNUTLS_ENABLED" = "x1" \
-      -o "x$MBEDTLS_ENABLED" = "x1"; then
-    SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
-  elif test "x$WOLFSSL_ENABLED" = "x1" -a "x$WOLFSSL_FULL_BIO" = "x1"; then
-    SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
+if test "x$CURL_DISABLE_HTTP" != "x1"; then
+  if test "x$https_proxy" != "xno"; then
+    if test "x$OPENSSL_ENABLED" = "x1" \
+        -o "x$GNUTLS_ENABLED" = "x1" \
+        -o "x$SECURETRANSPORT_ENABLED" = "x1" \
+        -o "x$RUSTLS_ENABLED" = "x1" \
+        -o "x$BEARSSL_ENABLED" = "x1" \
+        -o "x$SCHANNEL_ENABLED" = "x1" \
+        -o "x$GNUTLS_ENABLED" = "x1" \
+        -o "x$MBEDTLS_ENABLED" = "x1"; then
+      SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
+      AC_MSG_RESULT([yes])
+    elif test "x$WOLFSSL_ENABLED" = "x1" -a "x$WOLFSSL_FULL_BIO" = "x1"; then
+      SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
+      AC_MSG_RESULT([yes])
+    else
+      AC_MSG_RESULT([no])
+    fi
+  else
+    AC_MSG_RESULT([no])
   fi
+else
+  AC_MSG_RESULT([no])
 fi
 
 if test "x$ECH_ENABLED" = "x1"; then
@@ -4611,6 +4623,9 @@ if test ${ac_cv_sizeof_curl_off_t} -gt 4; then
 fi
 
 if test "$tst_atomic" = "yes"; then
+  SUPPORT_FEATURES="$SUPPORT_FEATURES threadsafe"
+elif test "x$USE_THREADS_POSIX" = "x1" -a \
+     "x$ac_cv_header_pthread_h" = "xyes"; then
   SUPPORT_FEATURES="$SUPPORT_FEATURES threadsafe"
 else
   AC_COMPILE_IFELSE([
@@ -4635,7 +4650,7 @@ AC_SUBST(SUPPORT_FEATURES)
 
 dnl For supported protocols in pkg-config file
 if test "x$CURL_DISABLE_HTTP" != "x1"; then
-  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS HTTP"
+  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS HTTP IPFS IPNS"
   if test "x$SSL_ENABLED" = "x1"; then
     SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS HTTPS"
   fi

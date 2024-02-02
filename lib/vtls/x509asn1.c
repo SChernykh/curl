@@ -379,10 +379,10 @@ utf8asn1str(char **to, int type, const char *from, const char *end)
       case 4:
         wc = (wc << 8) | *(const unsigned char *) from++;
         wc = (wc << 8) | *(const unsigned char *) from++;
-        /* FALLTHROUGH */
+        FALLTHROUGH();
       case 2:
         wc = (wc << 8) | *(const unsigned char *) from++;
-        /* FALLTHROUGH */
+        FALLTHROUGH();
       default: /* case 1: */
         wc = (wc << 8) | *(const unsigned char *) from++;
       }
@@ -548,7 +548,7 @@ static const char *GTime2str(const char *beg, const char *end)
     break;
   case 2:
     sec1 = fracp[-2];
-    /* FALLTHROUGH */
+    FALLTHROUGH();
   case 1:
     sec2 = fracp[-1];
     break;
@@ -606,6 +606,7 @@ static const char *UTime2str(const char *beg, const char *end)
   switch(tzp - sec) {
   case 0:
     sec = "00";
+    FALLTHROUGH();
   case 2:
     break;
   default:
@@ -964,7 +965,7 @@ static int do_pubkey(struct Curl_easy *data, int certnum,
      */
     const size_t len = ((pubkey->end - pubkey->beg - 2) * 4);
     if(!certnum)
-      infof(data, "   ECC Public Key (%lu bits)", len);
+      infof(data, "   ECC Public Key (%zu bits)", len);
     if(data->set.ssl.certinfo) {
       char q[sizeof(len) * 8 / 3 + 1];
       (void)msnprintf(q, sizeof(q), "%zu", len);
@@ -998,7 +999,7 @@ static int do_pubkey(struct Curl_easy *data, int certnum,
     if(len > 32)
       elem.beg = q;     /* Strip leading zero bytes. */
     if(!certnum)
-      infof(data, "   RSA Public Key (%lu bits)", len);
+      infof(data, "   RSA Public Key (%zu bits)", len);
     if(data->set.ssl.certinfo) {
       char r[sizeof(len) * 8 / 3 + 1];
       msnprintf(r, sizeof(r), "%zu", len);
@@ -1317,16 +1318,16 @@ CURLcode Curl_verifyhost(struct Curl_cfilter *cf,
   if(Curl_parseX509(&cert, beg, end))
     return CURLE_PEER_FAILED_VERIFICATION;
 
-  hostlen = strlen(connssl->hostname);
+  hostlen = strlen(connssl->peer.hostname);
 
   /* Get the server IP address. */
 #ifdef ENABLE_IPV6
   if(cf->conn->bits.ipv6_ip &&
-     Curl_inet_pton(AF_INET6, connssl->hostname, &addr))
+     Curl_inet_pton(AF_INET6, connssl->peer.hostname, &addr))
     addrlen = sizeof(struct in6_addr);
   else
 #endif
-  if(Curl_inet_pton(AF_INET, connssl->hostname, &addr))
+  if(Curl_inet_pton(AF_INET, connssl->peer.hostname, &addr))
     addrlen = sizeof(struct in_addr);
 
   /* Process extensions. */
@@ -1361,7 +1362,7 @@ CURLcode Curl_verifyhost(struct Curl_cfilter *cf,
                             name.beg, name.end);
           if(len > 0 && (size_t)len == strlen(dnsname))
             matched = Curl_cert_hostcheck(dnsname, (size_t)len,
-                                          connssl->hostname, hostlen);
+                                          connssl->peer.hostname, hostlen);
           else
             matched = 0;
           free(dnsname);
@@ -1421,7 +1422,7 @@ CURLcode Curl_verifyhost(struct Curl_cfilter *cf,
     if(strlen(dnsname) != (size_t) len)         /* Nul byte in string ? */
       failf(data, "SSL: illegal cert name field");
     else if(Curl_cert_hostcheck((const char *) dnsname,
-                                len, connssl->hostname, hostlen)) {
+                                len, connssl->peer.hostname, hostlen)) {
       infof(data, "  common name: %s (matched)", dnsname);
       free(dnsname);
       return CURLE_OK;

@@ -162,6 +162,8 @@ library check.
 
 # Windows
 
+Building for Windows XP is required as a minimum.
+
 ## Building Windows DLLs and C runtime (CRT) linkage issues
 
  As a general rule, building a DLL with static CRT linkage is highly
@@ -182,54 +184,6 @@ single library your app uses as well as your app using the debug
 multi-threaded dynamic C runtime.
 
  If you get linkage errors read section 5.7 of the FAQ document.
-
-## mingw-w64
-
-Make sure that mingw-w64's bin directory is in the search path, for example:
-
-```cmd
-set PATH=c:\mingw-w64\bin;%PATH%
-```
-
-then run `mingw32-make mingw32` in the root dir. There are other
-make targets available to build libcurl with more features, use:
-
- - `mingw32-make mingw32-zlib` to build with Zlib support;
- - `mingw32-make mingw32-ssl-zlib` to build with SSL and Zlib enabled;
- - `mingw32-make mingw32-ssh2-ssl-zlib` to build with SSH2, SSL, Zlib;
- - `mingw32-make mingw32-ssh2-ssl-sspi-zlib` to build with SSH2, SSL, Zlib
-   and SSPI support.
-
-If you have any problems linking libraries or finding header files, be sure
-to verify that the provided `Makefile.mk` files use the proper paths, and
-adjust as necessary. It is also possible to override these paths with
-environment variables, for example:
-
-```cmd
-set ZLIB_PATH=c:\zlib-1.2.12
-set OPENSSL_PATH=c:\openssl-3.0.5
-set LIBSSH2_PATH=c:\libssh2-1.10.0
-```
-
-It is also possible to build with other LDAP installations than MS LDAP;
-currently it is possible to build with native Win32 OpenLDAP, or with the
-*Novell CLDAP* SDK. If you want to use these you need to set these vars:
-
-```cmd
-set CPPFLAGS=-Ic:/openldap/include -DCURL_HAS_OPENLDAP_LDAPSDK
-set LDFLAGS=-Lc:/openldap/lib
-set LIBS=-lldap -llber
-```
-
-or for using the Novell SDK:
-
-```cmd
-set CPPFLAGS=-Ic:/openldapsdk/inc -DCURL_HAS_NOVELL_LDAPSDK
-set LDFLAGS=-Lc:/openldapsdk/lib/mscvc
-set LIBS=-lldapsdk -lldapssl -lldapx
-```
-
-If you want to enable LDAPS support then append `-ldaps` to the make target.
 
 ## Cygwin
 
@@ -524,7 +478,12 @@ disabling support for some feature:
  - `--disable-alt-svc` (HTTP Alt-Svc)
  - `--disable-ares` (the C-ARES DNS library)
  - `--disable-cookies` (HTTP cookies)
- - `--disable-crypto-auth` (cryptographic authentication)
+ - `--disable-basic-auth` (cryptographic authentication)
+ - `--disable-bearer-auth` (cryptographic authentication)
+ - `--disable-digest-auth` (cryptographic authentication)
+ - `--disable-kerberos-auth` (cryptographic authentication)
+ - `--disable-negotiate-auth` (cryptographic authentication)
+ - `--disable-aws` (cryptographic authentication)
  - `--disable-dateparse` (date parsing for time conditionals)
  - `--disable-dnsshuffle` (internal server load spreading)
  - `--disable-doh` (DNS-over-HTTP)
@@ -589,29 +548,29 @@ that are not automatically detected:
  - `--disable-libcurl-option`   !`--libcurl`
  - `--disable-verbose`          !verbose\ logs
 
-# PORTS
+# Ports
 
 This is a probably incomplete list of known CPU architectures and operating
 systems that curl has been compiled for. If you know a system curl compiles
 and runs on, that is not listed, please let us know!
 
-## 92 Operating Systems
+## 101 Operating Systems
 
-    AIX, AmigaOS, Android, Aros, BeOS, Blackberry 10, Blackberry Tablet OS,
-    Cell OS, Chrome OS, Cisco IOS, Cygwin, DG/UX, Dragonfly BSD, DR DOS, eCOS,
-    FreeBSD, FreeDOS, FreeRTOS, Fuchsia, Garmin OS, Genode, Haiku, HardenedBSD,
-    HP-UX, Hurd, Illumos, Integrity, iOS, ipadOS, IRIX, Linux, Lua RTOS,
-    Mac OS 9, macOS, Mbed, Micrium, MINIX, MorphOS, MPE/iX, MS-DOS, NCR MP-RAS,
-    NetBSD, Netware, Nintendo Switch, NonStop OS, NuttX, Omni OS, OpenBSD,
-    OpenStep, Orbis OS, OS/2, OS/400, OS21, Plan 9, PlayStation Portable, QNX,
-    Qubes OS, ReactOS, Redox, RICS OS, RTEMS, Sailfish OS, SCO Unix, Serenity,
-    SINIX-Z, Solaris, SunOS, Syllable OS, Symbian, Tizen, TPF, Tru64, tvOS,
-    ucLinux, Ultrix, UNICOS, UnixWare, VMS, vxWorks, watchOS, WebOS,
-    Wii system software, Windows, Windows CE, Xbox System, Xenix, Zephyr,
-    z/OS, z/TPF, z/VM, z/VSE
+    AIX, AmigaOS, Android, ArcoOS, Aros, Atari FreeMiNT, BeOS, Blackberry 10,
+    Blackberry Tablet OS, Cell OS, CheriBSD, Chrome OS, Cisco IOS, DG/UX,
+    Dragonfly BSD, DR DOS, eCOS, FreeBSD, FreeDOS, FreeRTOS, Fuchsia, Garmin OS,
+    Genode, Haiku, HardenedBSD, HP-UX, Hurd, Illumos, Integrity, iOS, ipadOS, IRIX,
+    Linux, Lua RTOS, Mac OS 9, macOS, Mbed, Meego, Micrium, MINIX, Moblin, MorphOS,
+    MPE/iX, MS-DOS, NCR MP-RAS, NetBSD, Netware, NextStep, Nintendo Switch,
+    NonStop OS, NuttX, OpenBSD, OpenStep, Orbis OS, OS/2, OS/400, OS21, Plan 9,
+    PlayStation Portable, QNX, Qubes OS, ReactOS, Redox, RICS OS, ROS, RTEMS,
+    Sailfish OS, SCO Unix, Serenity, SINIX-Z, SkyOS, Solaris, Sortix, SunOS,
+    Syllable OS, Symbian, Tizen, TPF, Tru64, tvOS, ucLinux, Ultrix, UNICOS,
+    UnixWare, VMS, vxWorks, watchOS, Wear OS, WebOS, Wii system software, Wii U,
+    Windows, Windows CE, Xbox System, Xenix, Zephyr, z/OS, z/TPF, z/VM, z/VSE
 
-## 26 CPU Architectures
+## 28 CPU Architectures
 
-    Alpha, ARC, ARM, AVR32, CompactRISC, Elbrus, ETRAX, HP-PA, Itanium,
+    Alpha, ARC, ARM, AVR32, C-SKY, CompactRISC, Elbrus, ETRAX, HP-PA, Itanium,
     LoongArch, m68k, m88k, MicroBlaze, MIPS, Nios, OpenRISC, POWER, PowerPC,
-    RISC-V, s390, SH4, SPARC, Tilera, VAX, x86, Xtensa
+    RISC-V, s390, SH4, SPARC, Tilera, VAX, x86, Xtensa, z/arch

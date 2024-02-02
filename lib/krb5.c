@@ -75,8 +75,7 @@ static CURLcode ftpsend(struct Curl_easy *data, struct connectdata *conn,
   unsigned char data_sec = conn->data_prot;
 #endif
 
-  if(!cmd)
-    return CURLE_BAD_FUNCTION_ARGUMENT;
+  DEBUGASSERT(cmd);
 
   write_len = strlen(cmd);
   if(!write_len || write_len > (sizeof(s) -3))
@@ -417,7 +416,6 @@ static char level_to_char(int level)
   case PROT_PRIVATE:
     return 'P';
   case PROT_CMD:
-    /* Fall through */
   default:
     /* Those 2 cases should not be reached! */
     break;

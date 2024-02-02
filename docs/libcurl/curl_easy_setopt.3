@@ -423,6 +423,8 @@ Use PRET. See \fICURLOPT_FTP_USE_PRET(3)\fP
 Create missing directories on the remote server. See \fICURLOPT_FTP_CREATE_MISSING_DIRS(3)\fP
 .IP CURLOPT_SERVER_RESPONSE_TIMEOUT
 Timeout for server responses. See \fICURLOPT_SERVER_RESPONSE_TIMEOUT(3)\fP
+.IP CURLOPT_SERVER_RESPONSE_TIMEOUT_MS
+Timeout for server responses. See \fICURLOPT_SERVER_RESPONSE_TIMEOUT_MS(3)\fP
 .IP CURLOPT_FTP_ALTERNATIVE_TO_USER
 Alternative to USER. See \fICURLOPT_FTP_ALTERNATIVE_TO_USER(3)\fP
 .IP CURLOPT_FTP_SKIP_PASV_IP
@@ -709,12 +711,15 @@ To be set by toplevel tools like "curl" to skip lengthy cleanups when they are a
 TELNET options. See \fICURLOPT_TELNETOPTIONS(3)\fP
 .SH EXAMPLE
 .nf
-CURL *curl = curl_easy_init();
-if(curl) {
-  CURLcode res;
-  curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
-  res = curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
+int main(void)
+{
+  CURL *curl = curl_easy_init();
+  if(curl) {
+    CURLcode res;
+    curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
+    res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+  }
 }
 .fi
 .SH AVAILABILITY
