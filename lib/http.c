@@ -2192,7 +2192,7 @@ CURLcode Curl_http_host(struct Curl_easy *data, struct connectdata *conn)
     }
 #endif
 
-    if(strcmp("Host:", ptr)) {
+    if(!strcasecompare("Host:", ptr)) {
       aptr->host = aprintf("Host:%s\r\n", &ptr[5]);
       if(!aptr->host)
         return CURLE_OUT_OF_MEMORY;
@@ -2280,9 +2280,7 @@ CURLcode Curl_http_target(struct Curl_easy *data,
         return CURLE_OUT_OF_MEMORY;
       }
     }
-    /* Extract the URL to use in the request. Store in STRING_TEMP_URL for
-       clean-up reasons if the function returns before the free() further
-       down. */
+    /* Extract the URL to use in the request. */
     uc = curl_url_get(h, CURLUPART_URL, &url, CURLU_NO_DEFAULT_PORT);
     if(uc) {
       curl_url_cleanup(h);
@@ -2942,13 +2940,14 @@ CURLcode Curl_http_resume(struct Curl_easy *data,
         }
         /* when seekerr == CURL_SEEKFUNC_CANTSEEK (can't seek to offset) */
         do {
+          char scratch[4*1024];
           size_t readthisamountnow =
-            (data->state.resume_from - passed > data->set.buffer_size) ?
-            (size_t)data->set.buffer_size :
+            (data->state.resume_from - passed > (curl_off_t)sizeof(scratch)) ?
+            sizeof(scratch) :
             curlx_sotouz(data->state.resume_from - passed);
 
           size_t actuallyread =
-            data->state.fread_func(data->state.buffer, 1, readthisamountnow,
+            data->state.fread_func(scratch, 1, readthisamountnow,
                                    data->state.in);
 
           passed += actuallyread;
@@ -4037,34 +4036,40 @@ static CURLcode http_rw_headers(struct Curl_easy *data,
           }
           break;
         case 101:
-          /* Switching Protocols */
-          if(k->upgr101 == UPGR101_H2) {
-            /* Switching to HTTP/2 */
-            DEBUGASSERT(conn->httpversion < 20);
-            infof(data, "Received 101, Switching to HTTP/2");
-            k->upgr101 = UPGR101_RECEIVED;
+          if(conn->httpversion == 11) {
+            /* Switching Protocols only allowed from HTTP/1.1 */
+            if(k->upgr101 == UPGR101_H2) {
+              /* Switching to HTTP/2 */
+              infof(data, "Received 101, Switching to HTTP/2");
+              k->upgr101 = UPGR101_RECEIVED;
 
-            /* we'll get more headers (HTTP/2 response) */
-            k->header = TRUE;
-            k->headerline = 0; /* restart the header line counter */
-            switch_to_h2 = TRUE;
-          }
+              /* we'll get more headers (HTTP/2 response) */
+              k->header = TRUE;
+              k->headerline = 0; /* restart the header line counter */
+              switch_to_h2 = TRUE;
+            }
 #ifdef USE_WEBSOCKETS
-          else if(k->upgr101 == UPGR101_WS) {
-            /* verify the response */
-            result = Curl_ws_accept(data, buf, blen);
-            if(result)
-              return result;
-            k->header = FALSE; /* no more header to parse! */
-            *pconsumed += blen; /* ws accept handled the data */
-            blen = 0;
-            if(data->set.connect_only)
-              k->keepon &= ~KEEP_RECV; /* read no more content */
-          }
+            else if(k->upgr101 == UPGR101_WS) {
+              /* verify the response */
+              result = Curl_ws_accept(data, buf, blen);
+              if(result)
+                return result;
+              k->header = FALSE; /* no more header to parse! */
+              *pconsumed += blen; /* ws accept handled the data */
+              blen = 0;
+              if(data->set.connect_only)
+                k->keepon &= ~KEEP_RECV; /* read no more content */
+            }
 #endif
+            else {
+              /* Not switching to another protocol */
+              k->header = FALSE; /* no more header to parse! */
+            }
+          }
           else {
-            /* Not switching to another protocol */
-            k->header = FALSE; /* no more header to parse! */
+            /* invalid for other HTTP versions */
+            failf(data, "unexpected 101 response code");
+            return CURLE_WEIRD_SERVER_REPLY;
           }
           break;
         default:

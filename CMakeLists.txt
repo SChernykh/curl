@@ -306,12 +306,19 @@ endif()
 
 find_package(Perl)
 
-option(ENABLE_MANUAL "to provide the built-in manual" OFF)
+option(BUILD_LIBCURL_DOCS "to build libcurl man pages" ON)
+# curl source release tarballs come with the curl man page pre-built.
+option(ENABLE_CURL_MANUAL "to build the man page for curl and enable its -M/--manual option" OFF)
 
-if(ENABLE_MANUAL AND PERL_FOUND)
-  curl_nroff_check()
-  if(NROFF_USEFUL)
-    set(USE_MANUAL ON)
+if(ENABLE_CURL_MANUAL OR BUILD_LIBCURL_DOCS)
+  if(PERL_FOUND)
+    curl_nroff_check()
+    if(NROFF_USEFUL)
+      set(HAVE_MANUAL_TOOLS ON)
+    endif()
+  endif()
+  if(NOT HAVE_MANUAL_TOOLS)
+    message(WARNING "Perl not found, or nroff not useful. Will not build manuals.")
   endif()
 endif()
 
@@ -711,6 +718,10 @@ if(USE_MSH3)
   set(USE_MSH3 ON)
   include_directories(${MSH3_INCLUDE_DIRS})
   list(APPEND CURL_LIBS ${MSH3_LIBRARIES})
+endif()
+
+if(CURL_WITH_MULTI_SSL AND (USE_NGTCP2 OR USE_QUICHE OR USE_MSH3))
+  message(FATAL_ERROR "MultiSSL cannot be enabled with HTTP/3 and vice versa.")
 endif()
 
 if(NOT CURL_DISABLE_SRP AND (HAVE_GNUTLS_SRP OR HAVE_OPENSSL_SRP))
@@ -1470,7 +1481,7 @@ set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
 set(version_config "${generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
 
-if(USE_MANUAL)
+if(HAVE_MANUAL_TOOLS)
   add_subdirectory(docs)
 endif()
 

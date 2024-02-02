@@ -271,6 +271,7 @@ if test "x$OPT_OPENSSL" != xno; then
     ],[
         AC_MSG_RESULT([yes])
         ssl_msg="BoringSSL"
+        OPENSSL_IS_BORINGSSL=1
     ],[
         AC_MSG_RESULT([no])
     ])
@@ -287,6 +288,7 @@ if test "x$OPT_OPENSSL" != xno; then
     ],[
         AC_MSG_RESULT([yes])
         ssl_msg="AWS-LC"
+        OPENSSL_IS_BORINGSSL=1
     ],[
         AC_MSG_RESULT([no])
     ])
@@ -422,4 +424,23 @@ AS_HELP_STRING([--disable-openssl-auto-load-config],[Disable automatic loading o
 ])
 fi
 
+dnl ---
+dnl We may use OpenSSL QUIC.
+dnl ---
+if test "$OPENSSL_ENABLED" = "1"; then
+  AC_MSG_CHECKING([for QUIC support in OpenSSL])
+  AC_LINK_IFELSE([
+    AC_LANG_PROGRAM([[
+#include <openssl/ssl.h>
+    ]],[[
+      OSSL_QUIC_client_method();
+    ]])
+  ],[
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(HAVE_OPENSSL_QUIC, 1, [if you have the functions OSSL_QUIC_client_method])
+    AC_SUBST(HAVE_OPENSSL_QUIC, [1])
+  ],[
+    AC_MSG_RESULT([no])
+  ])
+fi
 ])
