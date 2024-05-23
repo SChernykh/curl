@@ -1,21 +1,18 @@
-curl and libcurl 8.6.1
+curl and libcurl 8.8.1
 
- Public curl releases:         255
- Command line options:         258
- curl_easy_setopt() options:   304
- Public functions in libcurl:  93
- Contributors:                 3078
+ Public curl releases:         258
+ Command line options:         259
+ curl_easy_setopt() options:   305
+ Public functions in libcurl:  94
+ Contributors:                 3173
 
 This release includes the following changes:
 
 
 This release includes the following bugfixes:
 
- o cmdline-docs/Makefile: avoid using a fixed temp file name [5]
- o asyn-thread: use wakeup_close to close the read descriptor [1]
- o ntml_wb: fix buffer type typo [2]
- o tool_operate: do not set CURLOPT_QUICK_EXIT in debug builds [3]
- o form-string.md: correct the example [4]
+ o (lib)curl.rc: set debug flag also for `CURLDEBUG` and `UNITTESTS` [2]
+ o winbuild: fix PE version info debug flag [1]
  --- new entries are listed above this ---
 
 This release includes the following known bugs:
@@ -31,13 +28,10 @@ Planned upcoming removals include:
 This release would not have looked like this without help, code, reports and
 advice from friends like these:
 
-  Boris Verkhovskiy, Dan Fandrich, Daniel Stenberg, Jon Rumsey, Stefan Eissing
-  (5 contributors)
+  Ray Satiro, Viktor Szakats
+  (2 contributors)
 
 References to bug reports and discussions on issues:
 
- [1] = https://curl.se/bug/?i=12836
- [2] = https://curl.se/bug/?i=12825
- [3] = https://curl.se/bug/?i=12834
- [4] = https://curl.se/bug/?i=12822
- [5] = https://curl.se/bug/?i=12829
+ [1] = https://curl.se/bug/?i=13739
+ [2] = https://curl.se/bug/?i=13730

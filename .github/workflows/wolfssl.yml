@@ -61,19 +61,22 @@ jobs:
             configure: LDFLAGS="-Wl,-rpath,$HOME/wssl/lib" --with-wolfssl=$HOME/wssl --enable-debug
             wolfssl-configure: --enable-all
           - name: wolfssl (configured with --enable-opensslextra)
-            install:
+            install: valgrind
             configure: LDFLAGS="-Wl,-rpath,$HOME/wssl/lib" --with-wolfssl=$HOME/wssl --enable-debug
             wolfssl-configure: --enable-opensslextra
 
     steps:
       - run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo apt-get install libtool autoconf automake pkg-config stunnel4 libpsl-dev ${{ matrix.build.install }}
           sudo python3 -m pip install impacket
         name: 'install prereqs and impacket'
 
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+
       - run: |
-          WOLFSSL_VER=5.6.3
+          source .github/scripts/VERSIONS
           curl -LOsSf --retry 6 --retry-connrefused --max-time 999 https://github.com/wolfSSL/wolfssl/archive/v$WOLFSSL_VER-stable.tar.gz
           tar -xzf v$WOLFSSL_VER-stable.tar.gz
           cd wolfssl-$WOLFSSL_VER-stable
@@ -81,8 +84,6 @@ jobs:
           ./configure --enable-tls13 ${{ matrix.build.wolfssl-configure }} --enable-harden --prefix=$HOME/wssl
           make install
         name: 'install wolfssl'
-
-      - uses: actions/checkout@v4
 
       - run: autoreconf -fi
         name: 'autoreconf'

@@ -1,3 +1,9 @@
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+
+SPDX-License-Identifier: curl
+-->
+
 # Parallel transfers
 
 curl 7.66.0 introduced support for doing multiple transfers simultaneously; in
@@ -5,9 +11,9 @@ parallel.
 
 ## -Z, --parallel
 
-When this command line option is used, curl will perform the transfers given
-to it at the same time. It will do up to `--parallel-max` concurrent
-transfers, with a default value of 50.
+When this command line option is used, curl performs the transfers given to it
+at the same time. It does up to `--parallel-max` concurrent transfers, with a
+default value of 50.
 
 ## Progress meter
 

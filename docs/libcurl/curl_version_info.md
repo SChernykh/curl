@@ -1,11 +1,13 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: curl_version_info
 Section: 3
 Source: libcurl
 See-also:
   - curl_version (3)
+Protocol:
+  - All
 ---
 
 # NAME
@@ -102,6 +104,9 @@ typedef struct {
   /* when 'age' is CURLVERSION_ELEVENTH or higher (>= 7.87.0), the members
      below exist */
   const char *const *feature_names; /* Feature names. */
+  /* when 'age' is CURLVERSION_TWELFTH or higher (>= 8.8.0), the members
+     below exist */
+  const char *const *rtmp_version; /* human readable string */
 } curl_version_info_data;
 ~~~
 
@@ -112,8 +117,8 @@ that you have a matching struct for in the header, as you tell libcurl your
 
 *version* is just an ascii string for the libcurl version.
 
-*version_num* is a 24 bit number created like this: <8 bits major number>
-| <8 bits minor number> | <8 bits patch number>. Version 7.9.8 is therefore
+*version_num* is a 24 bit number created like this: \<8 bits major number\> |
+\<8 bits minor number\> | \<8 bits patch number\>. Version 7.9.8 is therefore
 returned as 0x070908.
 
 *host* is an ascii string showing what host information that this libcurl
@@ -170,6 +175,12 @@ supports HTTP Brotli content encoding using libbrotlidec (Added in 7.57.0)
 *features* mask bit: CURL_VERSION_DEBUG
 
 libcurl was built with debug capabilities (added in 7.10.6)
+
+## ECH
+
+*features* mask bit: non-existent
+
+libcurl was built with ECH support (experimental, added in 8.8.0)
 
 ## gsasl
 
@@ -265,7 +276,7 @@ supports HTTP NTLM (added in 7.10.6)
 *features* mask bit: CURL_VERSION_NTLM_WB
 
 libcurl was built with support for NTLM delegation to a winbind helper.
-(Added in 7.22.0)
+(Added in 7.22.0) This feature was removed from curl in 8.8.0.
 
 ## PSL
 
@@ -378,4 +389,3 @@ Added in 7.10
 # RETURN VALUE
 
 A pointer to a curl_version_info_data struct.
-curl_version(3)

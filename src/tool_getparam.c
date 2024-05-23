@@ -123,6 +123,7 @@ typedef enum {
   C_DOH_INSECURE,
   C_DOH_URL,
   C_DUMP_HEADER,
+  C_ECH,
   C_EGD_FILE,
   C_ENGINE,
   C_EPRT,
@@ -404,6 +405,7 @@ static const struct LongShort aliases[]= {
   {"doh-insecure",               ARG_BOOL, ' ', C_DOH_INSECURE},
   {"doh-url"        ,            ARG_STRG, ' ', C_DOH_URL},
   {"dump-header",                ARG_FILE, 'D', C_DUMP_HEADER},
+  {"ech",                        ARG_STRG, ' ', C_ECH},
   {"egd-file",                   ARG_STRG, ' ', C_EGD_FILE},
   {"engine",                     ARG_STRG, ' ', C_ENGINE},
   {"eprt",                       ARG_BOOL, ' ', C_EPRT},
@@ -863,7 +865,8 @@ static ParameterError data_urlencode(struct GlobalConfig *global,
   }
   else {
     /* neither @ nor =, so no name and it isn't a file */
-    nlen = is_file = 0;
+    nlen = 0;
+    is_file = 0;
     p = nextarg;
   }
   if('@' == is_file) {
@@ -892,8 +895,7 @@ static ParameterError data_urlencode(struct GlobalConfig *global,
     err = getstr(&postdata, p, ALLOW_BLANK);
     if(err)
       goto error;
-    if(postdata)
-      size = strlen(postdata);
+    size = strlen(postdata);
   }
 
   if(!postdata) {
@@ -1009,13 +1011,14 @@ static const struct LongShort *single(char letter)
 {
   static const struct LongShort *singles[128 - ' ']; /* ASCII => pointer */
   static bool singles_done = FALSE;
-  DEBUGASSERT((letter < 127) && (letter > ' '));
+  if((letter >= 127) || (letter <= ' '))
+    return NULL;
 
   if(!singles_done) {
     unsigned int j;
     for(j = 0; j < sizeof(aliases)/sizeof(aliases[0]); j++) {
       if(aliases[j].letter != ' ') {
-        unsigned char l = aliases[j].letter;
+        unsigned char l = (unsigned char)aliases[j].letter;
         singles[l - ' '] = &aliases[j];
       }
     }
@@ -1121,8 +1124,7 @@ static ParameterError set_data(cmdline_t cmd,
     err = getstr(&postdata, nextarg, ALLOW_BLANK);
     if(err)
       return err;
-    if(postdata)
-      size = strlen(postdata);
+    size = strlen(postdata);
   }
   if(cmd == C_JSON)
     config->jsoned = TRUE;
@@ -1336,6 +1338,11 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         warnf(global, "The file name argument '%s' looks like a flag.",
               nextarg);
       }
+      else if(!strncmp("\xe2\x80\x9c", nextarg, 3)) {
+        warnf(global, "The argument '%s' starts with a unicode quote where "
+              "maybe an ASCII \" was intended?",
+              nextarg);
+      }
     }
     else if((a->desc == ARG_NONE) && !toggle) {
       err = PARAM_NO_PREFIX;
@@ -1350,6 +1357,12 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       nextarg = (char *)"";
 
     switch(cmd) {
+    case C_RANDOM_FILE: /* --random-file */
+    case C_EGD_FILE: /* --egd-file */
+    case C_NTLM_WB: /* --ntlm-wb */
+      warnf(global, "--%s is deprecated and has no function anymore",
+            a->lname);
+      break;
     case C_DNS_IPV4_ADDR: /* --dns-ipv4-addr */
       if(!curlinfo->ares_num) /* c-ares is needed for this */
         err = PARAM_LIBCURL_DOESNT_SUPPORT;
@@ -1363,10 +1376,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       else
         /* addr in dot notation */
         err = getstr(&config->dns_ipv6_addr, nextarg, DENY_BLANK);
-      break;
-    case C_RANDOM_FILE: /* --random-file */
-      break;
-    case C_EGD_FILE: /* --egd-file */
       break;
     case C_OAUTH2_BEARER: /* --oauth2-bearer */
       err = getstr(&config->oauth_bearer, nextarg, DENY_BLANK);
@@ -1471,14 +1480,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         config->authtype &= ~CURLAUTH_NTLM;
       else if(feature_ntlm)
         config->authtype |= CURLAUTH_NTLM;
-      else
-        err = PARAM_LIBCURL_DOESNT_SUPPORT;
-      break;
-    case C_NTLM_WB: /* --ntlm-wb */
-      if(!toggle)
-        config->authtype &= ~CURLAUTH_NTLM_WB;
-      else if(feature_ntlm_wb)
-        config->authtype |= CURLAUTH_NTLM_WB;
       else
         err = PARAM_LIBCURL_DOESNT_SUPPORT;
       break;
@@ -1593,6 +1594,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         url->flags |= GETOUT_URL;
       }
       break;
+    case C_FTP_SSL: /* --ftp-ssl */
     case C_SSL: /* --ssl */
       if(toggle && !feature_ssl)
         err = PARAM_LIBCURL_DOESNT_SUPPORT;
@@ -1600,7 +1602,8 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         config->ftp_ssl = toggle;
         if(config->ftp_ssl)
           warnf(global,
-                "--ssl is an insecure option, consider --ssl-reqd instead");
+                "--%s is an insecure option, consider --ssl-reqd instead",
+                a->lname);
       }
       break;
     case C_FTP_PASV: /* --ftp-pasv */
@@ -2077,6 +2080,57 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         err = PARAM_ENGINES_REQUESTED;
       }
       break;
+#ifndef USE_ECH
+    case C_ECH: /* --ech, not implemented by default */
+      err = PARAM_LIBCURL_DOESNT_SUPPORT;
+      break;
+#else
+    case C_ECH: /* --ech */
+      if(strlen(nextarg) > 4 && strncasecompare("pn:", nextarg, 3)) {
+        /* a public_name */
+        err = getstr(&config->ech_public, nextarg, DENY_BLANK);
+      }
+      else if(strlen(nextarg) > 5 && strncasecompare("ecl:", nextarg, 4)) {
+        /* an ECHConfigList */
+        if('@' != *(nextarg + 4)) {
+          err = getstr(&config->ech_config, nextarg, DENY_BLANK);
+        }
+        else {
+          /* Indirect case: @filename or @- for stdin */
+          char *tmpcfg = NULL;
+          FILE *file;
+
+          nextarg++;        /* skip over '@' */
+          if(!strcmp("-", nextarg)) {
+            file = stdin;
+          }
+          else {
+            file = fopen(nextarg, FOPEN_READTEXT);
+          }
+          if(!file) {
+            warnf(global,
+                  "Couldn't read file \"%s\" "
+                  "specified for \"--ech ecl:\" option",
+                  nextarg);
+            return PARAM_BAD_USE; /*  */
+          }
+          err = file2string(&tmpcfg, file);
+          if(file != stdin)
+            fclose(file);
+          if(err)
+            return err;
+          config->ech_config = aprintf("ecl:%s",tmpcfg);
+          if(!config->ech_config)
+            return PARAM_NO_MEM;
+          free(tmpcfg);
+      } /* file done */
+    }
+    else {
+      /* Simple case: just a string, with a keyword */
+      err = getstr(&config->ech, nextarg, DENY_BLANK);
+    }
+    break;
+#endif
     case C_CAPATH: /* --capath */
       err = getstr(&config->capath, nextarg, DENY_BLANK);
       break;
@@ -2655,7 +2709,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
           warnf(global, "Failed to read %s", fname);
       }
       else
-        err = getstr(&config->writeout, nextarg, DENY_BLANK);
+        err = getstr(&config->writeout, nextarg, ALLOW_BLANK);
       break;
     case C_PREPROXY: /* --preproxy */
       err = getstr(&config->preproxy, nextarg, DENY_BLANK);

@@ -1,5 +1,5 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: CURLINFO_PROXY_SSL_VERIFYRESULT
 Section: 3
@@ -8,6 +8,11 @@ See-also:
   - CURLINFO_SSL_VERIFYRESULT (3)
   - curl_easy_getinfo (3)
   - curl_easy_setopt (3)
+Protocol:
+  - TLS
+TLS-backend:
+  - OpenSSL
+  - GnuTLS
 ---
 
 # NAME
@@ -29,9 +34,7 @@ Pass a pointer to a long to receive the result of the certificate verification
 that was requested (using the CURLOPT_PROXY_SSL_VERIFYPEER(3)
 option. This is only used for HTTPS proxies.
 
-# PROTOCOLS
-
-All
+0 is a positive result. Non-zero is an error.
 
 # EXAMPLE
 
@@ -42,14 +45,23 @@ int main(void)
   if(curl) {
     CURLcode res;
     long verifyresult;
+
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     curl_easy_setopt(curl, CURLOPT_PROXY, "https://proxy:443");
+
     res = curl_easy_perform(curl);
-    if(res)
+    if(res) {
       printf("error: %s\n", curl_easy_strerror(res));
-    curl_easy_getinfo(curl, CURLINFO_PROXY_SSL_VERIFYRESULT, &verifyresult);
-    printf("The peer verification said %s\n", verifyresult?
-           "fine" : "bad");
+      curl_easy_cleanup(curl);
+      return 1;
+    }
+
+    res = curl_easy_getinfo(curl, CURLINFO_PROXY_SSL_VERIFYRESULT,
+                            &verifyresult);
+    if(!res) {
+      printf("The peer verification said %s\n",
+             (verifyresult ? "bad" : "fine"));
+    }
     curl_easy_cleanup(curl);
   }
 }

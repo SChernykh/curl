@@ -1,3 +1,9 @@
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+
+SPDX-License-Identifier: curl
+-->
+
 # Features -- what curl can do
 
 ## curl tool
@@ -26,7 +32,7 @@
  - happy eyeballs dual-stack connects
  - persistent connections
  - SOCKS 4 + 5 support, with or without local name resolving
- - supports user name and password in proxy environment variables
+ - supports username and password in proxy environment variables
  - operations through HTTP proxy "tunnel" (using CONNECT)
  - replaceable memory functions (malloc, free, realloc, etc)
  - asynchronous name resolving (6)

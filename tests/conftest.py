@@ -26,10 +26,10 @@ import sys, os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'http'))
 
-import pytest
 from testenv import Env
 
-def pytest_report_header(config, startdir):
+
+def pytest_report_header(config):
     # Env inits its base properties only once, we can report them here
     env = Env()
     report = [
@@ -44,6 +44,10 @@ def pytest_report_header(config, startdir):
     if env.has_caddy():
         report.extend([
             f'  Caddy: {env.caddy_version()}, http:{env.caddy_http_port} https:{env.caddy_https_port}'
+        ])
+    if env.has_vsftpd():
+        report.extend([
+            f'  VsFTPD: {env.vsftpd_version()}, ftp:{env.ftp_port}'
         ])
     return '\n'.join(report)
 

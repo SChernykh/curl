@@ -1,5 +1,5 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: curl_multi_fdset
 Section: 3
@@ -10,7 +10,10 @@ See-also:
   - curl_multi_perform (3)
   - curl_multi_timeout (3)
   - curl_multi_wait (3)
+  - curl_multi_waitfds (3)
   - select (2)
+Protocol:
+  - All
 ---
 
 # NAME

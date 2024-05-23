@@ -1,3 +1,9 @@
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+
+SPDX-License-Identifier: curl
+-->
+
 # Anatomy of a curl security advisory
 
 As described in the [Security Process](https://curl.se/dev/secprocess.html)
@@ -48,8 +54,8 @@ The easy way is to start with a recent previously published advisory and just
 blank out old texts and save it using a new name. Save the subtitles and
 general layout.
 
-Some details and metadata will be extracted from this document so it is
-important to stick to the existing format.
+Some details and metadata are extracted from this document so it is important
+to stick to the existing format.
 
 The first list must be the title of the issue.
 

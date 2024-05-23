@@ -1,11 +1,13 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: CURLOPT_NOSIGNAL
 Section: 3
 Source: libcurl
 See-also:
   - CURLOPT_TIMEOUT (3)
+Protocol:
+  - All
 ---
 
 # NAME
@@ -38,17 +40,11 @@ ignore SIGPIPE signals, which otherwise are sent by the system when trying to
 send data to a socket which is closed in the other end. libcurl makes an
 effort to never cause such SIGPIPE signals to trigger, but some operating
 systems have no way to avoid them and even on those that have there are some
-corner cases when they may still happen, contrary to our desire. In addition,
-using *CURLAUTH_NTLM_WB* authentication could cause a SIGCHLD signal to be
-raised.
+corner cases when they may still happen, contrary to our desire.
 
 # DEFAULT
 
 0
-
-# PROTOCOLS
-
-All
 
 # EXAMPLE
 

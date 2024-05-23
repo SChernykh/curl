@@ -1,5 +1,5 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: curl_global_cleanup
 Section: 3
@@ -8,6 +8,8 @@ See-also:
   - curl_global_init (3)
   - libcurl (3)
   - libcurl-thread (3)
+Protocol:
+  - All
 ---
 
 # NAME
@@ -51,6 +53,11 @@ containing libcurl is dynamically unloaded while libcurl-created threads are
 still running then your program may crash or other corruption may occur. We
 recommend you do not run libcurl from any module that may be unloaded
 dynamically. This behavior may be addressed in the future.
+
+libcurl may not be able to fully clean up after multi-threaded OpenSSL
+depending on how OpenSSL was built and loaded as a library. It is possible in
+some rare circumstances a memory leak could occur unless you implement your own
+OpenSSL thread cleanup. Refer to libcurl-thread(3).
 
 # EXAMPLE
 

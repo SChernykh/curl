@@ -1,3 +1,9 @@
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+
+SPDX-License-Identifier: curl
+-->
+
 # Hyper
 
 Hyper is a separate HTTP library written in Rust. curl can be told to use this
@@ -8,9 +14,8 @@ library as a backend to deal with HTTP.
 Hyper support in curl is considered **EXPERIMENTAL** until further notice. It
 needs to be explicitly enabled at build-time.
 
-Further development and tweaking of the Hyper backend support in curl will
-happen in the master branch using pull-requests, just like ordinary
-changes.
+Further development and tweaking of the Hyper backend support in curl happens
+in the master branch using pull-requests, just like ordinary changes.
 
 ## Hyper version
 

@@ -1,3 +1,9 @@
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+
+SPDX-License-Identifier: curl
+-->
+
 libcurl bindings
 ================
 
@@ -95,6 +101,8 @@ Bailiff and Bálint Szilakszi,
 [PureBasic](https://www.purebasic.com/documentation/http/index.html) uses libcurl in its "native" HTTP subsystem
 
 [Python](http://pycurl.io/) PycURL by Kjetil Jacobsen
+
+[Python](https://pypi.org/project/pymcurl/) mcurl by Ganesh Viswanathan
 
 [Q](https://q-lang.sourceforge.net/) The libcurl module is part of the default install
 

@@ -17,12 +17,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   maketgz-and-verify-in-tree:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
 
       - run: sudo apt-get purge -y curl libcurl4 libcurl4-doc
         name: 'remove preinstalled curl libcurl4{-doc}'
@@ -36,10 +38,19 @@ jobs:
       - run: make V=1 && make V=1 clean
         name: 'make and clean'
 
-      - run: ./maketgz 99.98.97
-        name: 'maketgz'
+      - name: 'maketgz'
+        run: |
+          SOURCE_DATE_EPOCH=1711526400 ./maketgz 99.98.97
 
-      - uses: actions/upload-artifact@v4
+      - name: 'maketgz reproducibility test'
+        run: |
+          mkdir run1; mv ./curl-99.98.97.* run1/
+          make V=1 && make V=1 clean
+          SOURCE_DATE_EPOCH=1711526400 ./maketgz 99.98.97
+          mkdir run2; cp -p ./curl-99.98.97.* run2/
+          diff run1 run2
+
+      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: 'release-tgz'
           path: 'curl-99.98.97.tar.gz'
@@ -49,9 +60,9 @@ jobs:
           tar xvf curl-99.98.97.tar.gz
           pushd curl-99.98.97
           ./configure --prefix=$HOME/temp --without-ssl --without-libpsl
-          make
-          make test-ci
-          make install
+          make -j3
+          make -j3 test-ci
+          make -j3 install
           popd
           # basic check of the installed files
           bash scripts/installcheck.sh $HOME/temp
@@ -63,7 +74,7 @@ jobs:
     timeout-minutes: 30
     needs: maketgz-and-verify-in-tree
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4
         with:
           name: 'release-tgz'
 
@@ -74,8 +85,8 @@ jobs:
           mkdir build
           pushd build
           ../curl-99.98.97/configure --without-ssl --without-libpsl
-          make
-          make test-ci
+          make -j3
+          make -j3 test-ci
           popd
           rm -rf build
           rm -rf curl-99.98.97
@@ -86,7 +97,7 @@ jobs:
     timeout-minutes: 30
     needs: maketgz-and-verify-in-tree
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4
         with:
           name: 'release-tgz'
 
@@ -107,7 +118,7 @@ jobs:
     timeout-minutes: 30
     needs: maketgz-and-verify-in-tree
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4
         with:
           name: 'release-tgz'
 
@@ -115,8 +126,6 @@ jobs:
           echo "::stop-commands::$(uuidgen)"
           tar xvf curl-99.98.97.tar.gz
           pushd curl-99.98.97
-          mkdir build
-          pushd build
-          cmake ..
-          make
+          cmake -B build -DCURL_WERROR=ON
+          make -C build -j3
         name: 'verify out-of-tree cmake build'

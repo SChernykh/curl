@@ -1,5 +1,5 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: CURLOPT_MAXFILESIZE
 Section: 3
@@ -7,6 +7,8 @@ Source: libcurl
 See-also:
   - CURLOPT_MAXFILESIZE_LARGE (3)
   - CURLOPT_MAX_RECV_SPEED_LARGE (3)
+Protocol:
+  - All
 ---
 
 # NAME
@@ -26,6 +28,8 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_MAXFILESIZE, long size);
 Pass a long as parameter. This specifies the maximum accepted *size* (in
 bytes) of a file to download. If the file requested is found larger than this
 value, the transfer is aborted and *CURLE_FILESIZE_EXCEEDED* is returned.
+Passing a zero *size* disables this, and passing a negative *size* yields a
+*CURLE_BAD_FUNCTION_ARGUMENT*.
 
 The file size is not always known prior to the download start, and for such
 transfers this option has no effect - even if the file transfer eventually
@@ -38,11 +42,7 @@ threshold.
 
 # DEFAULT
 
-None
-
-# PROTOCOLS
-
-FTP, HTTP and MQTT
+0, meaning disabled.
 
 # EXAMPLE
 
@@ -66,4 +66,5 @@ Always
 
 # RETURN VALUE
 
-Returns CURLE_OK
+Returns CURLE_OK if the size passed is valid or CURLE_BAD_FUNCTION_ARGUMENT if
+not.

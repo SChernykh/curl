@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: curl
 #
+AAAA
 ABI
 accessor
 ACK
@@ -10,6 +11,7 @@ AIA
 AIX
 al
 Alessandro
+aliasMode
 allocator
 alnum
 ALPN
@@ -39,7 +41,9 @@ auth
 autobuild
 autobuilds
 Autoconf
+autoconf
 Automake
+automake
 Autotools
 autotools
 AVR
@@ -107,14 +111,18 @@ CLA
 CLAs
 cleartext
 CLI
+ClientHello
 clientp
 cliget
 closesocket
 CMake
-CMake's
 cmake
+CMake's
 cmake's
+CNAME
+CNAMEs
 CMakeLists
+CNA
 CodeQL
 codeql
 CODESET
@@ -143,6 +151,7 @@ cURL
 CURLcode
 curldown
 CURLE
+CURLECH
 CURLH
 curlimages
 CURLINFO
@@ -161,6 +170,7 @@ dbg
 Debian
 DEBUGBUILD
 decrypt
+decrypting
 deepcode
 DELE
 DER
@@ -187,6 +197,7 @@ DNS
 dns
 dnsop
 DoH
+DoT
 doxygen
 drftpd
 dsa
@@ -198,6 +209,9 @@ EBCDIC
 ECC
 ECDHE
 ECH
+ecl
+ECHConfig
+ECHConfigList
 ECONNREFUSED
 eCOS
 EFnet
@@ -281,8 +295,11 @@ GOST
 GPG
 GPL
 GPLed
+GREASE
+GREASEing
 Greear
 groff
+gsasl
 GSKit
 gskit
 GSS
@@ -303,6 +320,7 @@ Hards
 Haxx
 haxx
 Heimdal
+HelloRetryRequest
 HELO
 HH
 HMAC
@@ -312,6 +330,7 @@ homebrew
 hostname
 hostnames
 Housley
+HRR
 Hruska
 HSTS
 hsts
@@ -424,6 +443,7 @@ libssh
 libSSH
 libssh2
 Libtool
+libtool
 libuv
 libWebSocket
 libz
@@ -449,11 +469,13 @@ makefiles
 malloc
 mallocs
 manpage
+manpages
 maprintf
 Marek
 Mavrogiannopoulos
 Mbed
 mbedTLS
+md
 Meglio
 memdebug
 MesaLink
@@ -464,6 +486,7 @@ Michal
 Micrium
 MicroBlaze
 MicroOS
+middlebox
 mingw
 MinGW
 MINIX
@@ -584,6 +607,7 @@ pkcs
 PKGBUILD
 PKI
 pluggable
+pn
 PolarSSL
 Polhem
 pollset
@@ -619,6 +643,7 @@ py
 pycurl
 pytest
 Pytest
+qname
 QNX
 QoS
 Qubes
@@ -662,6 +687,9 @@ Roadmap
 Rockbox
 roffit
 RPG
+RR
+RRs
+RRtype
 RSA
 RTMP
 rtmp
@@ -757,6 +785,7 @@ stdin
 stdout
 Steinar
 Stenberg
+STLS
 STOR
 strcat
 strcpy
@@ -778,6 +807,7 @@ SunSSH
 superset
 svc
 svcb
+SVCB
 Svyatoslav
 Swisscom
 sws
@@ -795,6 +825,7 @@ Tekniska
 testability
 TFTP
 tftp
+threadsafe
 Tizen
 TLS
 tlsv
@@ -875,6 +906,7 @@ vnd
 VRF
 VRFY
 VSE
+vsftpd
 vsprintf
 vt
 vtls

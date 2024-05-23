@@ -1,5 +1,5 @@
 ---
-c: Copyright (C) Daniel Stenberg, <daniel.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: CURLOPT_WRITEFUNCTION
 Section: 3
@@ -8,6 +8,8 @@ See-also:
   - CURLOPT_HEADERFUNCTION (3)
   - CURLOPT_READFUNCTION (3)
   - CURLOPT_WRITEDATA (3)
+Protocol:
+  - All
 ---
 
 # NAME
@@ -38,7 +40,7 @@ The data passed to this function is not null-terminated.
 
 The callback function is passed as much data as possible in all invokes, but
 you must not make any assumptions. It may be one byte, it may be
-thousands. The maximum amount of body data that is be passed to the write
+thousands. The maximum amount of body data that is passed to the write
 callback is defined in the curl.h header file: *CURL_MAX_WRITE_SIZE* (the
 usual default is 16K). If CURLOPT_HEADER(3) is enabled, which makes header
 data get passed to the write callback, you can get up to
@@ -72,10 +74,6 @@ do that.
 
 libcurl uses 'fwrite' as a callback by default.
 
-# PROTOCOLS
-
-For all protocols
-
 # EXAMPLE
 
 ~~~c
@@ -87,7 +85,7 @@ struct memory {
   size_t size;
 };
 
-static size_t cb(void *data, size_t size, size_t nmemb, void *clientp)
+static size_t cb(char *data, size_t size, size_t nmemb, void *clientp)
 {
   size_t realsize = size * nmemb;
   struct memory *mem = (struct memory *)clientp;

@@ -1,19 +1,17 @@
-                                  _   _ ____  _
-                              ___| | | |  _ \| |
-                             / __| | | | |_) | |
-                            | (__| |_| |  _ <| |___
-                             \___|\___/|_| \_\_____|
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 
-                                How To Compile with CMake
+SPDX-License-Identifier: curl
+-->
 
 # Building with CMake
 
 This document describes how to configure, build and install curl and libcurl
-from source code using the CMake build tool. To build with CMake, you will
-of course have to first install CMake. The minimum required version of CMake
-is specified in the file `CMakeLists.txt` found in the top of the curl
-source tree. Once the correct version of CMake is installed you can follow
-the instructions below for the platform you are building on.
+from source code using the CMake build tool. To build with CMake, you of
+course first have to install CMake. The minimum required version of CMake is
+specified in the file `CMakeLists.txt` found in the top of the curl source
+tree. Once the correct version of CMake is installed you can follow the
+instructions below for the platform you are building on.
 
 CMake builds can be configured either from the command line, or from one of
 CMake's GUIs.
@@ -50,7 +48,7 @@ that is apart from the source tree.
        $ cmake -B .
 
  - Build in a separate directory (parallel to the curl source tree in this
-   example). The build directory will be created for you.
+   example). The build directory is created for you.
 
        $ cmake -B ../curl-build
 
@@ -68,15 +66,22 @@ If you want to build in the source tree, it is enough to do this:
 
     $ cmake .
 
+### Build system generator selection
+
+You can override CMake's default by using `-G <generator-name>`. For example
+on Windows with multiple build systems if you have MinGW-w64 then you could use
+`-G "MinGW Makefiles"`.
+[List of generator names](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
+
 ## Using `ccmake`
 
 CMake comes with a curses based interface called `ccmake`. To run `ccmake`
 on a curl use the instructions for the command line cmake, but substitute
 `ccmake` for `cmake`.
 
-This will bring up a curses interface with instructions on the bottom of the
-screen. You can press the "c" key to configure the project, and the "g" key
-to generate the project. After the project is generated, you can run make.
+This brings up a curses interface with instructions on the bottom of the
+screen. You can press the "c" key to configure the project, and the "g" key to
+generate the project. After the project is generated, you can run make.
 
 ## Using `cmake-gui`
 

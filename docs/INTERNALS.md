@@ -1,3 +1,9 @@
+<!--
+Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+
+SPDX-License-Identifier: curl
+-->
+
 # curl internals
 
 The canonical libcurl internals documentation is now in the [everything
@@ -43,7 +49,6 @@ versions of libs and build tools.
  - GNU M4       1.4
  - perl         5.6
  - roffit       0.5
- - nroff        any version that supports `-man [in] [out]`
  - cmake        3.7
 
 Library Symbols
