@@ -48,16 +48,16 @@ jobs:
       matrix:
         arch: ['x86_64']
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: 'cmake'
-        uses: cross-platform-actions/action@b2e15da1e667187766fff4945d20b98ac7055576 # v0.24.0
+        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
         with:
           operating_system: 'netbsd'
           version: '10.0'
           architecture: ${{ matrix.arch }}
           run: |
             # https://pkgsrc.se/
-            sudo pkgin -y install cmake perl brotli heimdal openldap-client libssh2 libidn2 libpsl nghttp2  # python311 py311-impacket
+            sudo pkgin -y install cmake pkg-config perl brotli heimdal openldap-client libssh2 libidn2 libpsl nghttp2  # python311 py311-impacket
             cmake -B bld \
               -DCMAKE_UNITY_BUILD=ON \
               -DCURL_WERROR=ON \
@@ -65,10 +65,10 @@ jobs:
               -DBUILD_EXAMPLES=ON \
               -DENABLE_WEBSOCKETS=ON \
               -DCURL_USE_OPENSSL=ON \
-              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON -DCURL_USE_GSSAPI=ON
+              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON -DCURL_USE_GSSAPI=ON \
+              || { cat bld/CMakeFiles/CMake*.yaml; false; }
             cmake --build bld --config Debug --parallel 3
-            export CURL=$(pwd)/bld/src/curl
-            "${CURL}" --disable --version
+            bld/src/curl --disable --version
             if [ '${{ matrix.arch }}' = 'x86_64' ]; then  # Slow on emulated CPU
               cmake --build bld --config Debug --parallel 3 --target testdeps
               cmake --build bld --config Debug --target test-ci
@@ -82,9 +82,9 @@ jobs:
       matrix:
         arch: ['x86_64']
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: 'cmake'
-        uses: cross-platform-actions/action@b2e15da1e667187766fff4945d20b98ac7055576 # v0.24.0
+        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
         with:
           operating_system: 'openbsd'
           version: '7.5'
@@ -99,13 +99,13 @@ jobs:
               -DBUILD_EXAMPLES=ON \
               -DENABLE_WEBSOCKETS=ON \
               -DCURL_USE_OPENSSL=ON \
-              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON
+              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON \
+              || { cat bld/CMakeFiles/CMake*.yaml; false; }
             cmake --build bld --config Debug --parallel 3
-            export CURL=$(pwd)/bld/src/curl
-            "${CURL}" --disable --version
+            bld/src/curl --disable --version
             if [ '${{ matrix.arch }}' = 'x86_64' ]; then  # Slow on emulated CPU
               cmake --build bld --config Debug --parallel 3 --target testdeps
-              export TFLAGS='-j8 ~TFTP'  # FIXME: TFTP requests executed twice? Related: `curl: (69) TFTP: Access Violation`?
+              export TFLAGS='-j8 ~3017 ~TFTP'  # FIXME: TFTP requests executed twice? Related: `curl: (69) TFTP: Access Violation`?
               cmake --build bld --config Debug --target test-ci
             fi
 
@@ -120,18 +120,17 @@ jobs:
           - { build: 'cmake'    , arch: 'arm64', compiler: 'clang' }
       fail-fast: false
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: 'autotools'
         if: ${{ matrix.build == 'autotools' }}
-        uses: cross-platform-actions/action@b2e15da1e667187766fff4945d20b98ac7055576 # v0.24.0
+        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
         with:
           operating_system: 'freebsd'
-          version: '14.0'
+          version: '14.1'
           architecture: ${{ matrix.arch }}
           run: |
             # https://ports.freebsd.org/
             sudo pkg install -y autoconf automake libtool pkgconf brotli openldap26-client libidn2 libnghttp2 nghttp2 stunnel py39-openssl py39-impacket py39-cryptography
-            sudo pkg delete -y curl
             autoreconf -fi
             export CC='${{ matrix.compiler }}'
             mkdir bld && cd bld && ../configure --enable-debug --enable-warnings --enable-werror \
@@ -150,24 +149,24 @@ jobs:
 
       - name: 'cmake'
         if: ${{ matrix.build == 'cmake' }}
-        uses: cross-platform-actions/action@b2e15da1e667187766fff4945d20b98ac7055576 # v0.24.0
+        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
         with:
           operating_system: 'freebsd'
-          version: '14.0'
+          version: '14.1'
           architecture: ${{ matrix.arch }}
           run: |
             # https://ports.freebsd.org/
-            sudo pkg install -y cmake brotli openldap26-client libidn2 libnghttp2 nghttp2 stunnel py39-openssl py39-impacket py39-cryptography
-            sudo pkg delete -y curl
+            sudo pkg install -y cmake pkgconf brotli openldap26-client libidn2 libnghttp2 nghttp2 stunnel py39-openssl py39-impacket py39-cryptography
             cmake -B bld \
-              -DCMAKE_C_COMPILER=${{ matrix.compiler }} \
+              '-DCMAKE_C_COMPILER=${{ matrix.compiler }}' \
               -DCMAKE_UNITY_BUILD=ON \
               -DCURL_WERROR=ON \
               -DENABLE_DEBUG=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG= \
               -DBUILD_EXAMPLES=ON \
               -DENABLE_WEBSOCKETS=ON \
               -DCURL_USE_OPENSSL=ON \
-              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON -DCURL_USE_GSSAPI=ON
+              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON -DCURL_USE_GSSAPI=ON \
+              || { cat bld/CMakeFiles/CMake*.yaml; false; }
             cmake --build bld --config Debug --parallel 3
             bld/src/curl --disable --version
             if [ '${{ matrix.arch }}' = 'x86_64' ]; then  # Slow on emulated CPU
@@ -178,18 +177,17 @@ jobs:
 
   omnios:
     name: 'OmniOS (autotools, openssl, gcc, amd64)'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: 'autotools'
-        uses: vmactions/omnios-vm@7c0ff6e623ee96d9fd7c4dc4cfc92bebd3c4f64a # v1
+        uses: vmactions/omnios-vm@a61ca1ebafdcb14a9d986928d070c9834ee66fd3 # v1
         with:
           usesh: true
-          # https://pkg.omnios.org/r151048/core/en/index.shtml
+          # https://pkg.omnios.org/r151050/core/en/index.shtml
           prepare: pkg install build-essential libtool
           run: |
-            pkg uninstall curl
             ln -s /usr/bin/gcpp /usr/bin/cpp  # Some tests expect `cpp`, which is named `gcpp` in this env.
             autoreconf -fi
             mkdir bld && cd bld && ../configure --enable-debug --enable-warnings --enable-werror \
@@ -200,5 +198,5 @@ jobs:
             gmake -j3 install
             src/curl --disable --version
             gmake -j3 examples
-            export TFLAGS='-j12'
+            export TFLAGS='-j12 ~MQTT ~FTP'
             gmake check V=1

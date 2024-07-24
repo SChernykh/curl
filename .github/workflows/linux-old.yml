@@ -9,7 +9,7 @@
 # Debian stretch is chosen as it closely matches some of the oldest major
 # versions we support (especially cmake); see docs/INTERNALS.md and it
 # is still supported (as of this writing).
-# stretch has ELTS support from Feexian until 2027-06-30
+# stretch has ELTS support from Freexian until 2027-06-30
 # For ELTS info see https://www.freexian.com/lts/extended/docs/how-to-use-extended-lts/
 # The Debian key will expire 2025-05-20, after which package signature
 # verification may need to be disabled.
@@ -50,7 +50,7 @@ on:
 permissions: {}
 
 env:
-  MAKEFLAGS: -j 3
+  MAKEFLAGS: -j 5
   DEBIAN_FRONTEND: noninteractive
 
 jobs:
@@ -74,10 +74,10 @@ jobs:
           apt-get install -y --no-install-suggests --no-install-recommends cmake make gcc pkg-config libpsl-dev libzstd-dev zlib1g-dev libssl1.0-dev libssh-dev libssh2-1-dev libc-ares-dev heimdal-dev libldap2-dev stunnel4 groff
           # GitHub's actions/checkout needs a newer glibc. This one is the
           # latest available for buster, the next stable release after stretch.
-          httrack --get https://security.debian.org/debian-security/pool/updates/main/g/glibc/libc6_2.28-10+deb10u3_amd64.deb
-          dpkg -i libc6_2.28-10+deb10u3_amd64.deb
+          httrack --get https://security.debian.org/debian-security/pool/updates/main/g/glibc/libc6_2.28-10+deb10u4_amd64.deb
+          dpkg -i libc6_*_amd64.deb
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
 
       - name: 'cmake build-only (out-of-tree, libssh2)'
         run: |

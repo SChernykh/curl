@@ -69,7 +69,6 @@ Bjørn
 bool
 boolean
 BoringSSL
-boringssl
 Boukris
 Broadcom
 brotli
@@ -119,10 +118,10 @@ CMake
 cmake
 CMake's
 cmake's
-CNAME
-CNAMEs
 CMakeLists
 CNA
+CNAME
+CNAMEs
 CodeQL
 codeql
 CODESET
@@ -174,6 +173,8 @@ decrypting
 deepcode
 DELE
 DER
+dereference
+dereferences
 deselectable
 deserialization
 Deserialized
@@ -209,11 +210,13 @@ EBCDIC
 ECC
 ECDHE
 ECH
-ecl
 ECHConfig
 ECHConfigList
+ecl
 ECONNREFUSED
 eCOS
+ECT
+EF
 EFnet
 EGD
 EHLO
@@ -289,7 +292,6 @@ globbed
 globbing
 gmail
 GnuTLS
-gnutls
 Golemon
 GOST
 GPG
@@ -358,6 +360,7 @@ ifdef
 ifdefed
 Ifdefs
 ifdefs
+ifhost
 IIS
 ILE
 Illumos
@@ -436,11 +439,9 @@ libpsl
 Libre
 libre
 LibreSSL
-libressl
 librtmp
 libs
 libssh
-libSSH
 libssh2
 Libtool
 libtool
@@ -456,6 +457,8 @@ LOGDIR
 logfile
 lookups
 loopback
+LOWCOST
+LOWDELAY
 LPRT
 LSB
 lseek
@@ -487,6 +490,7 @@ Micrium
 MicroBlaze
 MicroOS
 middlebox
+MINCOST
 mingw
 MinGW
 MINIX
@@ -503,6 +507,7 @@ MorphOS
 MPE
 MPL
 mprintf
+MPTCP
 MQTT
 mqtt
 mqtts
@@ -522,6 +527,7 @@ mTLS
 MUA
 multicwd
 multiparts
+multipath
 MultiSSL
 mumbo
 musedev
@@ -836,6 +842,7 @@ toolchain
 toolchains
 toolset
 toplevel
+TOS
 TPF
 TrackMemory
 transcode
@@ -899,6 +906,7 @@ VC
 vcpkg
 vexxhost
 Viktor
+VLAN
 VM
 VMS
 VMware

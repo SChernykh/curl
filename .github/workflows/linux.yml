@@ -40,15 +40,15 @@ concurrency:
 permissions: {}
 
 env:
-  MAKEFLAGS: -j 3
+  MAKEFLAGS: -j 5
   # unhandled
   bearssl-version: 0.6
   # renovate: datasource=github-tags depName=libressl-portable/portable versioning=semver registryUrl=https://github.com
   libressl-version: 3.9.2
   # renovate: datasource=github-tags depName=ARMmbed/mbedtls versioning=semver registryUrl=https://github.com
-  mbedtls-version: 3.5.0
+  mbedtls-version: 3.6.0
   # renovate: datasource=github-tags depName=icing/mod_h2 versioning=semver registryUrl=https://github.com
-  mod_h2-version: 2.0.27
+  mod_h2-version: 2.0.29
   # renovate: datasource=github-tags depName=nibanks/msh3 versioning=semver registryUrl=https://github.com
   msh3-version: 0.6.0
   # handled in renovate.json
@@ -204,7 +204,7 @@ jobs:
           apk add --no-cache build-base autoconf automake libtool perl openssl-dev libssh2-dev zlib-dev brotli-dev zstd-dev libidn2-dev openldap-dev heimdal-dev libpsl-dev py3-impacket py3-asn1 py3-six py3-pycryptodomex perl-time-hires openssh stunnel sudo git
         name: 'install dependencies'
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
 
       - name: Fix kernel mmap rnd bits
         # Asan in llvm 14 provided in ubuntu 22.04 is incompatible with
@@ -261,7 +261,7 @@ jobs:
           git clone --quiet --depth=1 -b v${{ env.libressl-version }} https://github.com/libressl-portable/portable.git libressl-git
           cd libressl-git
           ./autogen.sh
-          ./configure --prefix=$HOME/libressl
+          ./configure --disable-dependency-tracking --prefix=$HOME/libressl
           make install
 
       - name: cache mbedtls
@@ -297,7 +297,7 @@ jobs:
         run: |
           git clone --quiet --depth=1 -b ${{ env.openssl3-version }} https://github.com/openssl/openssl
           cd openssl
-          ./config --prefix=$HOME/openssl3 --libdir=$HOME/openssl3/lib
+          ./config --prefix=$HOME/openssl3 --libdir=lib
           make -j1 install_sw
 
       - name: cache quictls
@@ -315,7 +315,7 @@ jobs:
         run: |
           git clone --quiet --depth=1 -b openssl-${{ env.quictls-version }} https://github.com/quictls/openssl
           cd openssl
-          ./config --prefix=$HOME/quictls --libdir=$HOME/quictls/lib
+          ./config --prefix=$HOME/quictls --libdir=lib
           make -j1 install_sw
 
       - name: cache msh3
@@ -416,7 +416,7 @@ jobs:
       - run: autoreconf -fi
         name: 'autoreconf'
 
-      - run: ./configure --enable-warnings --enable-werror ${{ matrix.build.configure }}
+      - run: ./configure --disable-dependency-tracking --enable-warnings --enable-werror ${{ matrix.build.configure }}
         name: 'configure'
 
       - run: make V=1
