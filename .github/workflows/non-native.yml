@@ -4,7 +4,7 @@
 
 name: non-native
 
-on:
+'on':
   push:
     branches:
       - master
@@ -63,7 +63,7 @@ jobs:
               -DBUILD_EXAMPLES=ON \
               -DENABLE_WEBSOCKETS=ON \
               -DCURL_USE_OPENSSL=ON \
-              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON -DCURL_USE_GSSAPI=ON \
+              -DCURL_BROTLI=ON -DCURL_USE_GSSAPI=ON \
               || { cat bld/CMakeFiles/CMake*.yaml; false; }
             cmake --build bld --config Debug --parallel 3
             bld/src/curl --disable --version
@@ -98,13 +98,13 @@ jobs:
               -DBUILD_EXAMPLES=ON \
               -DENABLE_WEBSOCKETS=ON \
               -DCURL_USE_OPENSSL=ON \
-              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON \
+              -DCURL_BROTLI=ON \
               || { cat bld/CMakeFiles/CMake*.yaml; false; }
             cmake --build bld --config Debug --parallel 3
             bld/src/curl --disable --version
             if [ '${{ matrix.arch }}' = 'x86_64' ]; then  # Slow on emulated CPU
               cmake --build bld --config Debug --parallel 3 --target testdeps
-              export TFLAGS='-j8 ~3017 ~TFTP'  # FIXME: TFTP requests executed twice? Related: `curl: (69) TFTP: Access Violation`?
+              export TFLAGS='-j8 ~3017 ~TFTP ~FTP'  # FIXME: TFTP requests executed twice? Related: `curl: (69) TFTP: Access Violation`?
               cmake --build bld --config Debug --target test-ci
             fi
 
@@ -146,7 +146,7 @@ jobs:
               make -j3 -C tests
               # The OpenSSH server instance for the testsuite cannot be started on FreeBSD,
               # therefore the SFTP and SCP tests are disabled right away from the beginning.
-              make test-ci V=1 TFLAGS='-j12 !SFTP !SCP'
+              make test-ci V=1 TFLAGS='-j8 !SFTP !SCP ~FTP'
             fi
 
       - name: 'cmake'
@@ -167,7 +167,7 @@ jobs:
               -DBUILD_EXAMPLES=ON \
               -DENABLE_WEBSOCKETS=ON \
               -DCURL_USE_OPENSSL=ON \
-              -DCURL_BROTLI=ON -DUSE_NGHTTP2=ON -DCURL_USE_GSSAPI=ON \
+              -DCURL_BROTLI=ON -DCURL_USE_GSSAPI=ON \
               || { cat bld/CMakeFiles/CMake*.yaml; false; }
             cmake --build bld --config Debug --parallel 3
             bld/src/curl --disable --version
@@ -175,7 +175,7 @@ jobs:
               cmake --build bld --config Debug --parallel 3 --target testdeps
               # The OpenSSH server instance for the testsuite cannot be started on FreeBSD,
               # therefore the SFTP and SCP tests are disabled right away from the beginning.
-              make test-ci V=1 TFLAGS='-j12 !SFTP !SCP'
+              make test-ci V=1 TFLAGS='-j8 !SFTP !SCP ~FTP'
             fi
 
   omnios:

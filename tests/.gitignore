@@ -4,6 +4,7 @@
 
 *pid
 *.1.dist
+buildinfo.txt
 configurehelp.pm
 curl_client_key
 curl_client_key.pub
@@ -27,3 +28,5 @@ testcurl.pdf
 *.port
 config
 second-hsts.txt
+runtests.1
+testcurl.1

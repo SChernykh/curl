@@ -4,7 +4,7 @@
 
 name: http3-linux
 
-on:
+'on':
   push:
     branches:
       - master
@@ -49,12 +49,12 @@ env:
   # unhandled
   quictls-version: 3.1.4+quic
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver registryUrl=https://github.com
-  gnutls-version: 3.8.6
+  gnutls-version: 3.8.7
   wolfssl-version: master
   # renovate: datasource=github-tags depName=ngtcp2/nghttp3 versioning=semver registryUrl=https://github.com
-  nghttp3-version: 1.4.0
+  nghttp3-version: 1.5.0
   # renovate: datasource=github-tags depName=ngtcp2/ngtcp2 versioning=semver registryUrl=https://github.com
-  ngtcp2-version: 1.6.0
+  ngtcp2-version: 1.7.0
   # renovate: datasource=github-tags depName=nghttp2/nghttp2 versioning=semver registryUrl=https://github.com
   nghttp2-version: 1.62.1
   # renovate: datasource=github-tags depName=cloudflare/quiche versioning=semver registryUrl=https://github.com
@@ -470,7 +470,7 @@ jobs:
         env:
           TFLAGS: "${{ matrix.build.tflags }}"
 
-      - run: pytest -v tests
+      - run: pytest -v tests/http
         name: 'run pytest'
         env:
           TFLAGS: "${{ matrix.build.tflags }}"

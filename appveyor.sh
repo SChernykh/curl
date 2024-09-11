@@ -60,7 +60,8 @@ if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
     "-DENABLE_DEBUG=${DEBUG}" \
     "-DENABLE_UNICODE=${ENABLE_UNICODE}" \
     '-DCMAKE_INSTALL_PREFIX=C:/curl' \
-    "-DCMAKE_BUILD_TYPE=${PRJ_CFG}"
+    "-DCMAKE_BUILD_TYPE=${PRJ_CFG}" \
+    '-DCURL_USE_LIBPSL=OFF'
   # shellcheck disable=SC2086
   if ! cmake --build _bld --config "${PRJ_CFG}" --parallel 2 -- ${BUILD_OPT:-}; then
     if [ "${PRJ_GEN}" = 'Visual Studio 9 2008' ]; then
@@ -118,9 +119,7 @@ else
 fi
 
 if false; then
-  for log in CMakeFiles/CMakeConfigureLog.yaml CMakeFiles/CMakeOutput.log CMakeFiles/CMakeError.log; do
-    [ -r "_bld/${log}" ] && cat "_bld/${log}"
-  done
+  cat CMakeFiles/CMakeConfigureLog.yaml 2>/dev/null || true
 fi
 
 # build tests
@@ -139,6 +138,7 @@ if [[ "${TFLAGS}" != 'skipall' ]] && \
   elif [ -x "$(cygpath 'C:/msys64/usr/bin/curl.exe')" ]; then
     TFLAGS+=" -ac $(cygpath 'C:/msys64/usr/bin/curl.exe')"
   fi
+  TFLAGS+=' -j0'
   if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
     cmake --build _bld --config "${PRJ_CFG}" --target test-ci
   else

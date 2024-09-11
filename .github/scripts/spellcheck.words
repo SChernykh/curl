@@ -33,7 +33,6 @@ archivers
 Archos
 Arntsen
 Aros
-ascii
 asynch
 AsynchDNS
 atime
@@ -44,6 +43,7 @@ Autoconf
 autoconf
 Automake
 automake
+autoreconf
 Autotools
 autotools
 AVR
@@ -78,7 +78,6 @@ bugfix
 bugfixes
 buildable
 buildbot
-buildconf
 Caddy
 calloc
 CAPA
@@ -127,6 +126,7 @@ codeql
 CODESET
 codeset
 Comcast
+commit's
 Config
 config
 conncache
@@ -137,6 +137,7 @@ CPUs
 CR
 CRL
 CRLF
+crontab
 crt
 crypto
 cryptographic
@@ -451,6 +452,7 @@ libz
 libzstd
 LineageOS
 linux
+lldb
 ln
 localhost
 LOGDIR
@@ -664,6 +666,7 @@ ReactOS
 README
 realloc
 Realtime
+rebalances
 rebase
 RECV
 recv
@@ -713,6 +716,7 @@ runtests
 runtime
 Ruslan
 rustc
+Rustls
 rustls
 Sagula
 SanDisk
@@ -829,6 +833,7 @@ TCP
 tcpdump
 Tekniska
 testability
+testcurl
 TFTP
 tftp
 threadsafe
@@ -847,6 +852,7 @@ TPF
 TrackMemory
 transcode
 Tru
+trurl
 trustless
 Tse
 Tsujikawa
@@ -872,7 +878,6 @@ unescape
 Unglobbed
 Unicode
 UNICOS
-unix
 UnixSockets
 UnixWare
 unlink
@@ -924,6 +929,7 @@ Warta
 watchOS
 WAV
 WB
+wcurl
 web page
 WebDAV
 WebOS
@@ -934,14 +940,10 @@ WHATWG
 whitespace
 Whitespaces
 winbind
-WinBind
 winbuild
-winidn
 WinIDN
 WinLDAP
-WinSock
 winsock
-WinSSL
 winssl
 Wireshark
 wolfSSH

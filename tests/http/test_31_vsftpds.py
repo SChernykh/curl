@@ -172,6 +172,54 @@ class TestVsFTPD:
         # disregard RST packets it sent from its port to curl
         assert len(r.tcpdump.stats_excluding(src_port=env.ftps_port)) == 0, f'Unexpected TCP RSTs packets'
 
+    def test_31_08_upload_ascii(self, env: Env, vsftpds: VsFTPD):
+        docname = 'upload-ascii'
+        line_length = 21
+        srcfile = os.path.join(env.gen_dir, docname)
+        dstfile = os.path.join(vsftpds.docs_dir, docname)
+        env.make_data_file(indir=env.gen_dir, fname=docname, fsize=100*1024,
+                           line_length=line_length)
+        srcsize = os.path.getsize(srcfile)
+        self._rmf(dstfile)
+        count = 1
+        curl = CurlClient(env=env)
+        url = f'ftp://{env.ftp_domain}:{vsftpds.port}/'
+        r = curl.ftp_ssl_upload(urls=[url], fupload=f'{srcfile}', with_stats=True,
+                                extra_args=['--use-ascii'])
+        r.check_stats(count=count, http_status=226)
+        # expect the uploaded file to be number of converted newlines larger
+        dstsize = os.path.getsize(dstfile)
+        newlines = len(open(srcfile).readlines())
+        assert (srcsize + newlines) == dstsize, \
+            f'expected source with {newlines} lines to be that much larger,'\
+            f'instead srcsize={srcsize}, upload size={dstsize}, diff={dstsize-srcsize}'
+
+    def test_31_08_active_download(self, env: Env, vsftpds: VsFTPD):
+        docname = 'data-10k'
+        curl = CurlClient(env=env)
+        srcfile = os.path.join(vsftpds.docs_dir, f'{docname}')
+        count = 1
+        url = f'ftp://{env.ftp_domain}:{vsftpds.port}/{docname}?[0-{count-1}]'
+        r = curl.ftp_ssl_get(urls=[url], with_stats=True, extra_args=[
+            '--ftp-port', '127.0.0.1'
+        ])
+        r.check_stats(count=count, http_status=226)
+        self.check_downloads(curl, srcfile, count)
+
+    def test_31_09_active_upload(self, env: Env, vsftpds: VsFTPD):
+        docname = 'upload-1k'
+        curl = CurlClient(env=env)
+        srcfile = os.path.join(env.gen_dir, docname)
+        dstfile = os.path.join(vsftpds.docs_dir, docname)
+        self._rmf(dstfile)
+        count = 1
+        url = f'ftp://{env.ftp_domain}:{vsftpds.port}/'
+        r = curl.ftp_ssl_upload(urls=[url], fupload=f'{srcfile}', with_stats=True, extra_args=[
+            '--ftp-port', '127.0.0.1'
+        ])
+        r.check_stats(count=count, http_status=226)
+        self.check_upload(env, vsftpds, docname=docname)
+
     def check_downloads(self, client, srcfile: str, count: int,
                         complete: bool = True):
         for i in range(count):

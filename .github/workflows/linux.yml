@@ -4,7 +4,7 @@
 
 name: Linux
 
-on:
+'on':
   push:
     branches:
       - master
@@ -57,8 +57,8 @@ env:
   rustls-version: 0.13.0
 
 jobs:
-  autotools:
-    name: ${{ matrix.build.name }}
+  linux:
+    name: ${{ matrix.build.generate && 'CM' || 'AM' }} ${{ matrix.build.name }}
     runs-on: 'ubuntu-latest'
     container: ${{ matrix.build.container }}
     timeout-minutes: 90
@@ -78,10 +78,16 @@ jobs:
             configure: CC=clang LDFLAGS="-Wl,-rpath,$HOME/bearssl/lib" --with-bearssl=$HOME/bearssl --enable-debug
             singleuse: --unit
 
-          - name: libressl
-            install_packages: zlib1g-dev valgrind
+          - name: libressl heimdal
+            install_packages: zlib1g-dev heimdal-dev valgrind
             install_steps: libressl pytest
-            configure: LDFLAGS="-Wl,-rpath,$HOME/libressl/lib" --with-openssl=$HOME/libressl --enable-debug
+            configure: LDFLAGS="-Wl,-rpath,$HOME/libressl/lib" --with-openssl=$HOME/libressl --with-gssapi --enable-debug
+            singleuse: --unit
+
+          - name: libressl heimdal
+            install_packages: zlib1g-dev heimdal-dev valgrind
+            install_steps: libressl pytest
+            generate: -DOPENSSL_ROOT_DIR=$HOME/libressl -DCURL_USE_GSSAPI=ON -DENABLE_DEBUG=ON -DCURL_LIBCURL_VERSIONED_SYMBOLS=ON
             singleuse: --unit
 
           - name: libressl-clang
@@ -120,10 +126,16 @@ jobs:
             configure: CPPFLAGS=-DCURL_WARN_SIGN_CONVERSION CFLAGS=-O3 LDFLAGS="-Wl,-rpath,$HOME/openssl3/lib" --with-openssl=$HOME/openssl3 --enable-debug --enable-websockets
             singleuse: --unit
 
-          - name: openssl3-clang
-            install_packages: zlib1g-dev clang
+          - name: openssl3-clang krb5
+            install_packages: zlib1g-dev libkrb5-dev clang
             install_steps: openssl3
-            configure: CC=clang LDFLAGS="-Wl,-rpath,$HOME/openssl3/lib" --with-openssl=$HOME/openssl3 --enable-debug --enable-websockets
+            configure: CC=clang LDFLAGS="-Wl,-rpath,$HOME/openssl3/lib" --with-openssl=$HOME/openssl3 --with-gssapi --enable-debug --enable-websockets
+            singleuse: --unit
+
+          - name: openssl3-clang krb5
+            install_packages: zlib1g-dev libkrb5-dev clang
+            install_steps: openssl3
+            generate: -DOPENSSL_ROOT_DIR=$HOME/openssl3 -DCURL_USE_GSSAPI=ON -DENABLE_DEBUG=ON -DENABLE_WEBSOCKETS=ON
             singleuse: --unit
 
           - name: address-sanitizer
@@ -135,6 +147,16 @@ jobs:
               LDFLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined,integer"
               LIBS="-ldl -lubsan"
               --with-openssl --enable-debug --enable-websockets
+            singleuse: --unit
+
+          - name: thread-sanitizer
+            install_packages: zlib1g-dev clang libtsan2
+            install_steps: pytest openssltsan3
+            configure: >
+              CC=clang
+              CFLAGS="-fsanitize=thread -g"
+              LDFLAGS="-fsanitize=thread -Wl,-rpath,$HOME/openssl3/lib"
+              --with-openssl=$HOME/openssl3 --enable-debug --enable-websockets
             singleuse: --unit
 
           - name: memory-sanitizer
@@ -298,6 +320,28 @@ jobs:
           ./config --prefix=$HOME/openssl3 --libdir=lib
           make -j1 install_sw
 
+      - name: cache openssltsan3
+        if: contains(matrix.build.install_steps, 'openssltsan3')
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        id: cache-openssltsan3
+        env:
+          cache-name: cache-openssltsan3
+        with:
+          path: /home/runner/openssl3
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.openssl3-version }}-d8def798
+
+      - name: 'install openssltsan3'
+        if: contains(matrix.build.install_steps, 'openssltsan3') && steps.cache-openssltsan3.outputs.cache-hit != 'true'
+        # There are global data race in openssl:
+        # Cherry-Pick the fix for testing https://github.com/openssl/openssl/pull/24782
+        run: |
+          git clone --quiet --depth=1 -b ${{ env.openssl3-version }} https://github.com/openssl/openssl
+          cd openssl
+          git fetch --quiet --depth=2 origin d8def79838cd0d5e7c21d217aa26edb5229f0ab4
+          git cherry-pick -n d8def79838cd0d5e7c21d217aa26edb5229f0ab4
+          CC="clang" CFLAGS="-fsanitize=thread" LDFLAGS="-fsanitize=thread" ./config --prefix=$HOME/openssl3 --libdir=lib
+          make -j1 install_sw
+
       - name: cache quictls
         if: contains(matrix.build.install_steps, 'quictls')
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
@@ -412,38 +456,73 @@ jobs:
           sudo make install
 
       - run: autoreconf -fi
+        if: ${{ matrix.build.configure }}
         name: 'autoreconf'
 
       - run: ./configure --disable-dependency-tracking --enable-warnings --enable-werror ${{ matrix.build.configure }}
-        name: 'configure'
+        if: ${{ matrix.build.configure }}
+        name: 'configure (autotools)'
 
-      - run: make V=1
+      - run: |
+          cmake . \
+            -DCMAKE_C_COMPILER_TARGET=$(uname -m)-pc-linux-gnu -DBUILD_STATIC_LIBS=ON \
+            -DCMAKE_UNITY_BUILD=ON -DCURL_WERROR=ON \
+            -DBUILD_EXAMPLES=ON \
+            -DCURL_BROTLI=ON -DCURL_ZSTD=ON \
+            ${{ matrix.build.generate }}
+        if: ${{ matrix.build.generate }}
+        name: 'configure (cmake)'
+
+      - name: 'configure log'
+        if: ${{ !cancelled() }}
+        run: cat config.log CMakeFiles/CMakeConfigureLog.yaml 2>/dev/null || true
+
+      - name: 'test configs'
+        run: |
+          cat tests/config || true
+          cat tests/http/config.ini || true
+
+      - run: make V=1 VERBOSE=1
         name: 'make'
 
       - run: |
           git config --global --add safe.directory "*"
-          ./scripts/singleuse.pl ${{ matrix.build.singleuse }} lib/.libs/libcurl.a
+          if [ -n '${{ matrix.build.generate }}' ]; then
+            libcurla=lib/libcurl.a
+          else
+            libcurla=lib/.libs/libcurl.a
+          fi
+          ./scripts/singleuse.pl ${{ matrix.build.singleuse }} ${libcurla}
         name: single-use function check
 
       - run: ./src/curl -V
         name: 'check curl -V output'
 
       - run: make V=1 examples
+        if: ${{ matrix.build.configure }}
         name: 'make examples'
 
       - run: make V=1 -C tests
-        name: 'make tests'
+        if: ${{ matrix.build.configure }}
+        name: 'make tests (autotools)'
 
-      - run: make V=1 test-ci
-        name: 'run tests'
-        env:
-          TFLAGS: "${{ matrix.build.tflags }}"
+      - run: make VERBOSE=1 testdeps
+        if: ${{ matrix.build.generate }}
+        name: 'make tests (cmake)'
+
+      - name: 'run tests'
+        run: |
+          export TFLAGS='${{ matrix.build.tflags }}'
+          if [[ '${{ matrix.build.install_packages }}' = *'heimdal-dev'* ]]; then
+            TFLAGS+=' ~2077 ~2078'  # valgrind errors
+          fi
+          make V=1 VERBOSE=1 test-ci
 
       - if: contains(matrix.build.install_steps, 'pytest')
-        # run for `tests` directory, so pytest does not pick up any other
+        # run for `tests/http` directory, so pytest does not pick up any other
         # packages we might have built here
         run:
-          pytest -v tests
+          pytest -v tests/http
         name: 'run pytest'
         env:
           TFLAGS: "${{ matrix.build.tflags }}"
