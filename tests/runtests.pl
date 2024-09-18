@@ -851,7 +851,8 @@ sub checksystemfeatures {
             "* Disabled: $dis\n",
             "* Host: $hostname\n",
             "* System: $hosttype\n",
-            "* OS: $hostos\n");
+            "* OS: $hostos\n",
+            "* Perl: $^V ($^X)\n");
 
     if($jobs) {
         # Only show if not the default for now
@@ -1496,6 +1497,11 @@ sub singletest_check {
         }
         if($hash{'crlf'}) {
             subnewlines(1, \$_) for @upload;
+        }
+        if($hash{'nonewline'}) {
+            # Yes, we must cut off the final newline from the final line
+            # of the upload data
+            chomp($upload[-1]);
         }
 
         $res = compare($runnerid, $testnum, $testname, "upload", \@out, \@upload);
