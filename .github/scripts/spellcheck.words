@@ -364,7 +364,7 @@ ifdefs
 ifhost
 IIS
 ILE
-Illumos
+illumos
 IMAP
 imap
 IMAPS
@@ -688,7 +688,6 @@ RETR
 retransmit
 retrigger
 RHEL
-RICS
 Rikard
 rmdir
 ROADMAP
@@ -702,6 +701,7 @@ RRtype
 RSA
 RTMP
 rtmp
+rtmpdump
 RTMPE
 RTMPS
 RTMPT
@@ -768,6 +768,7 @@ SOCKOPT
 SOCKSv
 Solaris
 SONAME
+SOVERSION
 Soref
 SPARC
 SPDX
@@ -889,6 +890,7 @@ unsanitized
 Unshare
 unsharing
 untrusted
+unwrite
 UPN
 upstreaming
 URI

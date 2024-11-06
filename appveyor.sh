@@ -29,7 +29,7 @@ set -eux; [ -n "${BASH:-}${ZSH_NAME:-}" ] && set -o pipefail
 # build
 
 if [ "${APPVEYOR_BUILD_WORKER_IMAGE}" = 'Visual Studio 2022' ]; then
-  openssl_root_win='C:/OpenSSL-v32-Win64'
+  openssl_root_win='C:/OpenSSL-v33-Win64'
 else
   openssl_root_win='C:/OpenSSL-v111-Win64'
 fi
@@ -38,6 +38,7 @@ openssl_root="$(cygpath "${openssl_root_win}")"
 if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
   options=''
   [[ "${TARGET:-}" = *'ARM64'* ]] && SKIP_RUN='ARM64 architecture'
+  [ -n "${TOOLSET:-}" ] && options+=" -T ${TOOLSET}"
   [ "${OPENSSL}" = 'ON' ] && options+=" -DOPENSSL_ROOT_DIR=${openssl_root_win}"
   [ -n "${CURLDEBUG:-}" ] && options+=" -DENABLE_CURLDEBUG=${CURLDEBUG}"
   [ "${PRJ_CFG}" = 'Debug' ] && options+=' -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG='
@@ -54,14 +55,18 @@ if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
     "-DCURL_USE_SCHANNEL=${SCHANNEL}" \
     "-DHTTP_ONLY=${HTTP_ONLY}" \
     "-DBUILD_SHARED_LIBS=${SHARED}" \
-    "-DENABLE_WEBSOCKETS=${WEBSOCKETS:-}" \
     "-DCMAKE_UNITY_BUILD=${UNITY}" \
+    '-DCURL_TEST_BUNDLES=ON' \
     '-DCURL_WERROR=ON' \
     "-DENABLE_DEBUG=${DEBUG}" \
     "-DENABLE_UNICODE=${ENABLE_UNICODE}" \
     '-DCMAKE_INSTALL_PREFIX=C:/curl' \
     "-DCMAKE_BUILD_TYPE=${PRJ_CFG}" \
     '-DCURL_USE_LIBPSL=OFF'
+  if false; then
+    cat _bld/CMakeFiles/CMakeConfigureLog.yaml 2>/dev/null || true
+  fi
+  echo 'curl_config.h'; grep -F '#define' _bld/lib/curl_config.h | sort || true
   # shellcheck disable=SC2086
   if ! cmake --build _bld --config "${PRJ_CFG}" --parallel 2 -- ${BUILD_OPT:-}; then
     if [ "${PRJ_GEN}" = 'Visual Studio 9 2008' ]; then
@@ -103,7 +108,7 @@ elif [ "${BUILD_SYSTEM}" = 'winbuild_vs2017' ]; then
     cd winbuild
     cat << EOF > _make.bat
       call "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build/vcvars64.bat"
-      nmake -f Makefile.vc mode=dll VC=14.10 "SSL_PATH=${openssl_root_win}" WITH_SSL=dll MACHINE=x64 DEBUG=${DEBUG} ENABLE_UNICODE=${ENABLE_UNICODE} ENABLE_WEBSOCKETS=yes
+      nmake -f Makefile.vc mode=dll VC=14.10 "SSL_PATH=${openssl_root_win}" WITH_SSL=dll MACHINE=x64 DEBUG=${DEBUG} ENABLE_UNICODE=${ENABLE_UNICODE}
 EOF
     ./_make.bat
     rm _make.bat
@@ -116,10 +121,6 @@ if [ -z "${SKIP_RUN:-}" ]; then
   "${curl}" --disable --version
 else
   echo "Skip running curl.exe. Reason: ${SKIP_RUN}"
-fi
-
-if false; then
-  cat CMakeFiles/CMakeConfigureLog.yaml 2>/dev/null || true
 fi
 
 # build tests
@@ -148,4 +149,11 @@ if [[ "${TFLAGS}" != 'skipall' ]] && \
       ./runtests.pl
     )
   fi
+fi
+
+# build examples
+
+if [[ "${EXAMPLES}" = 'ON' ]] && \
+   [ "${BUILD_SYSTEM}" = 'CMake' ]; then
+  cmake --build _bld --config "${PRJ_CFG}" --parallel 2 --target curl-examples
 fi
