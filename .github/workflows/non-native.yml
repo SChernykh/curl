@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: 'cmake'
-        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
+        uses: cross-platform-actions/action@a0672d7f6de3a78e7784bbaf491c7303f68d94b3 # v0.26.0
         with:
           operating_system: 'netbsd'
           version: '10.0'
@@ -84,7 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: 'cmake'
-        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
+        uses: cross-platform-actions/action@a0672d7f6de3a78e7784bbaf491c7303f68d94b3 # v0.26.0
         with:
           operating_system: 'openbsd'
           version: '7.5'
@@ -128,7 +128,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: 'autotools'
         if: ${{ matrix.build == 'autotools' }}
-        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
+        uses: cross-platform-actions/action@a0672d7f6de3a78e7784bbaf491c7303f68d94b3 # v0.26.0
         with:
           operating_system: 'freebsd'
           version: '14.1'
@@ -136,7 +136,7 @@ jobs:
           run: |
             # https://ports.freebsd.org/
             sudo pkg install -y autoconf automake libtool \
-              pkgconf brotli openldap26-client libidn2 libnghttp2 nghttp2 stunnel py311-impacket
+              pkgconf brotli openldap26-client libidn2 libnghttp2 stunnel py311-impacket
             autoreconf -fi
             export CC='${{ matrix.compiler }}'
             mkdir bld && cd bld && ../configure --enable-unity --enable-test-bundles --enable-debug --enable-warnings --enable-werror \
@@ -158,15 +158,15 @@ jobs:
 
       - name: 'cmake'
         if: ${{ matrix.build == 'cmake' }}
-        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
+        uses: cross-platform-actions/action@a0672d7f6de3a78e7784bbaf491c7303f68d94b3 # v0.26.0
         with:
           operating_system: 'freebsd'
           version: '14.1'
           architecture: ${{ matrix.arch }}
           run: |
             # https://ports.freebsd.org/
-            sudo pkg install -y cmake ninja perl5 \
-              pkgconf brotli openldap26-client libidn2 libnghttp2 nghttp2 stunnel py311-impacket
+            sudo pkg install -y cmake-core ninja perl5 \
+              pkgconf brotli openldap26-client libidn2 libnghttp2 stunnel py311-impacket
             cmake -B bld -G Ninja \
               '-DCMAKE_C_COMPILER=${{ matrix.compiler }}' \
               -DCMAKE_UNITY_BUILD=ON -DCURL_TEST_BUNDLES=ON \
@@ -194,11 +194,11 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: 'autotools'
-        uses: vmactions/omnios-vm@52a1db31be4fd41325bb0ed32d9ff79f78c69d8d # v1
+        uses: vmactions/omnios-vm@16b5996777bc675acd3d537f13df536a526cd16d # v1
         with:
           usesh: true
-          # https://pkg.omnios.org/r151050/core/en/index.shtml
-          prepare: pkg install build-essential libtool
+          # https://pkg.omnios.org/r151052/core/en/index.shtml
+          prepare: pkg install build-essential libtool nghttp2
           run: |
             set -e
             ln -s /usr/bin/gcpp /usr/bin/cpp  # Some tests expect `cpp`, which is named `gcpp` in this env.
