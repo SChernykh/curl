@@ -193,8 +193,14 @@ if(WIN32)
   option(CURL_STATIC_CRT "Build libcurl with static CRT with MSVC (/MT)" OFF)
   if(CURL_STATIC_CRT AND MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    string(APPEND CMAKE_C_FLAGS_RELEASE " -MT")
-    string(APPEND CMAKE_C_FLAGS_DEBUG " -MTd")
+
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /W0 /Zi /Od /Ob0 /MP /MTd")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /W0 /O2 /Ob2 /Oi /Ot /Oy /MP /MT /GL /GS /guard:cf")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /W0 /Ob1 /Ot /Zi /MP /MT")
+
+    if (DEV_WITH_ASAN)
+      set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /fsanitize=address")
+    endif()
   endif()
 
   option(ENABLE_UNICODE "Use the Unicode version of the Windows API functions" OFF)
@@ -483,20 +489,20 @@ if(WINDOWS_STORE)
   set(CURL_DISABLE_TELNET ON)  # telnet code needs fixing to compile for UWP.
 endif()
 
-find_package(Perl)
+#find_package(Perl)
 
-if(PERL_EXECUTABLE)
-  add_custom_target(curl-ca-bundle
-    COMMENT "Generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl" -b -l -u "lib/ca-bundle.crt"
-    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl"
-  )
-  add_custom_target(curl-ca-firefox
-    COMMENT "generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh" "lib/ca-bundle.crt"
-    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh"
-  )
-endif()
+#if(PERL_EXECUTABLE)
+#  add_custom_target(curl-ca-bundle
+#    COMMENT "Generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl" -b -l -u "lib/ca-bundle.crt"
+#    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl"
+#  )
+#  add_custom_target(curl-ca-firefox
+#    COMMENT "generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh" "lib/ca-bundle.crt"
+#    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh"
+#  )
+#endif()
 
 option(BUILD_LIBCURL_DOCS "Build libcurl man pages" ON)
 option(BUILD_MISC_DOCS "Build misc man pages (e.g. curl-config and mk-ca-bundle)" ON)
@@ -783,6 +789,14 @@ if(CURL_USE_OPENSSL)
       message(WARNING "OpenSSL ${OPENSSL_VERSION} does not support TLS 1.3.")
     endif()
   endif()
+endif()
+
+if(P2POOL_BORINGSSL)
+  set(_ssl_enabled ON)
+  set(USE_OPENSSL ON)
+  set(HAVE_BORINGSSL TRUE)
+  set(HAVE_SSL_SET0_WBIO TRUE)
+  include_directories("${OPENSSL_INCLUDE_DIR}")
 endif()
 
 if(CURL_USE_MBEDTLS)
@@ -1947,7 +1961,7 @@ if(WIN32)
   string(APPEND CMAKE_RC_FLAGS " -DCURL_EMBED_MANIFEST")
 
   # We use crypto functions that are not available for UWP apps
-  if(NOT WINDOWS_STORE)
+  if(NOT WINDOWS_STORE AND NOT CURL_DISABLE_NTLM)
     set(USE_WIN32_CRYPTO ON)
   endif()
 
