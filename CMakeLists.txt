@@ -783,6 +783,13 @@ if(CURL_USE_OPENSSL)
   endif()
 endif()
 
+if(P2POOL_BORINGSSL)
+  set(_ssl_enabled ON)
+  set(USE_OPENSSL ON)
+  set(HAVE_BORINGSSL TRUE)
+  include_directories("${OPENSSL_INCLUDE_DIR}")
+endif()
+
 if(CURL_USE_MBEDTLS)
   find_package(MbedTLS REQUIRED)
   set(_ssl_enabled ON)
@@ -1939,7 +1946,7 @@ if(WIN32)
   set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -DCURL_EMBED_MANIFEST")
 
   # We use crypto functions that are not available for UWP apps
-  if(NOT WINDOWS_STORE)
+  if(NOT WINDOWS_STORE AND NOT CURL_DISABLE_NTLM)
     set(USE_WIN32_CRYPTO ON)
   endif()
 
