@@ -52,7 +52,7 @@ commands:
       - run:
           command: |
             # renovate: datasource=github-tags depName=wolfSSL/wolfssl versioning=semver extractVersion=^v?(?<version>.+)-stable$ registryUrl=https://github.com
-            WOLFSSL_VER=5.7.4
+            WOLFSSL_VER=5.7.6
             echo "Installing wolfSSL $WOLFSSL_VER"
             curl -LOsSf --retry 6 --retry-connrefused --max-time 999 https://github.com/wolfSSL/wolfssl/archive/v$WOLFSSL_VER-stable.tar.gz
             tar -xzf v$WOLFSSL_VER-stable.tar.gz
@@ -72,7 +72,7 @@ commands:
             tar -xzf v$WOLFSSH_VER-stable.tar.gz
             cd wolfssh-$WOLFSSH_VER-stable
             ./autogen.sh
-            ./configure --disable-dependency-tracking --with-wolfssl=$HOME/wssl --prefix=$HOME/wssh --enable-scp --enable-sftp --disable-examples
+            ./configure --disable-dependency-tracking --with-wolfssl=$HOME/wssl --prefix=$HOME/wssh --enable-scp --enable-sftp --disable-term --disable-examples
             make install
 
   configure:

@@ -42,7 +42,6 @@ if($ARGV[0] eq "--unit") {
 my $file = $ARGV[0];
 
 my %wl = (
-    'curlx_uztoso' => 'cmdline tool use',
     'Curl_xfer_write_resp' => 'internal api',
     'Curl_creader_def_init' => 'internal api',
     'Curl_creader_def_close' => 'internal api',
@@ -62,6 +61,8 @@ my %api = (
     'curl_easy_reset' => 'API',
     'curl_easy_send' => 'API',
     'curl_easy_setopt' => 'API',
+    'curl_easy_ssls_export' => 'API',
+    'curl_easy_ssls_import' => 'API',
     'curl_easy_strerror' => 'API',
     'curl_easy_unescape' => 'API',
     'curl_easy_upkeep' => 'API',

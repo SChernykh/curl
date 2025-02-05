@@ -6,7 +6,7 @@ SPDX-License-Identifier: curl
 
 # Continuous Integration for curl
 
-Curl runs in many different environments, so every change is run against a
+curl runs in many different environments, so every change is run against a
 large number of test suites.
 
 Every pull request is verified for each of the following:
@@ -31,10 +31,8 @@ Consider the following table while looking at pull request failures:
 
  | CI platform as shown in PR          | State  | What to look at next       |
  | ----------------------------------- | ------ | -------------------------- |
- | CI / codeql                         | stable | quality check results      |
  | CI / fuzzing                        | stable | fuzzing results            |
  | CI / macos ...                      | stable | all errors and failures    |
- | Code scanning results / CodeQL      | stable | quality check results      |
  | FreeBSD FreeBSD: ...                | stable | all errors and failures    |
  | LGTM analysis: Python               | stable | new findings               |
  | LGTM analysis:  C/C++               | stable | new findings               |
@@ -42,7 +40,6 @@ Consider the following table while looking at pull request failures:
  | AppVeyor                            | flaky  | all errors and failures    |
  | curl.curl (linux ...)               | stable | all errors and failures    |
  | curl.curl (windows ...)             | flaky  | repetitive errors/failures |
- | CodeQL                              | stable | new findings               |
 
 Sometimes the tests fail due to a dependency service temporarily being offline
 or otherwise unavailable, for example package downloads. In this case you can
@@ -61,8 +58,7 @@ GitHub Actions runs the following tests:
 - macOS tests with a variety of different compilation options
 - Fuzz tests ([see the curl-fuzzer repo for more
   info](https://github.com/curl/curl-fuzzer)).
-- Curl compiled using the Rust TLS backend with Hyper
-- CodeQL static analysis
+- curl compiled using the Rust TLS backend with Hyper
 
 These are each configured in different files in `.github/workflows`.
 

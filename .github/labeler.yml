@@ -63,11 +63,10 @@ build:
               **/CMakeLists.txt,\
               **/Makefile.am,\
               **/Makefile.inc,\
-              **/Makefile.mk,\
               **/*.m4,\
               **/*.mk,\
               *.m4,\
-              docs/INSTALL.cmake,\
+              docs/INSTALL-CMAKE.md,\
               lib/curl_config.h.cmake,\
               lib/libcurl*.in,\
               CMake/**,\
@@ -100,7 +99,7 @@ cmake:
           - any-glob-to-all-files: "{\
               **/CMakeLists.txt,\
               CMake/**,\
-              docs/INSTALL.cmake,\
+              docs/INSTALL-CMAKE.md,\
               lib/curl_config.h.cmake\
               }"
 
@@ -293,14 +292,6 @@ HTTP/3:
               tests/nghttpx.conf\
               }"
 
-Hyper:
-  - all:
-      - changed-files:
-          - any-glob-to-all-files: "{\
-              docs/HYPER.md,\
-              lib/c-hyper.*\
-              }"
-
 IMAP:
   - all:
       - changed-files:
@@ -386,6 +377,7 @@ RTMP:
   - all:
       - changed-files:
           - any-glob-to-all-files: "{\
+              CMake/FindLibrtmp.cmake,\
               lib/curl_rtmp.*\
               }"
 
@@ -524,7 +516,7 @@ Windows:
           - any-glob-to-all-files: "{\
               appveyor.*,\
               .github/workflows/windows.yml,\
-              CMake/Platforms/WindowsCache.cmake,\
+              CMake/win32-cache.cmake,\
               lib/*win32*,\
               lib/curl_multibyte.*,\
               lib/rename.*,\

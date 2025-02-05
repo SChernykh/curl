@@ -121,10 +121,9 @@ CMakeLists
 CNA
 CNAME
 CNAMEs
-CodeQL
-codeql
 CODESET
 codeset
+CodeSonar
 Comcast
 commit's
 Config
@@ -347,6 +346,7 @@ httpget
 HttpGet
 HTTPS
 https
+HTTPSRR
 hyper's
 Högskolan
 IANA
@@ -598,6 +598,7 @@ Orbis
 ORing
 Osipov
 OSS
+PaaS
 pac
 pacman
 parser's
@@ -768,8 +769,8 @@ SOCKOPT
 SOCKSv
 Solaris
 SONAME
-SOVERSION
 Soref
+SOVERSION
 SPARC
 SPDX
 SPNEGO
@@ -782,6 +783,7 @@ SSL
 ssl
 SSLeay
 SSLKEYLOGFILE
+SSLS
 sslv
 SSLv
 SSLVERSION
@@ -913,6 +915,7 @@ VC
 vcpkg
 vexxhost
 Viktor
+Virtuozzo
 VLAN
 VM
 VMS
