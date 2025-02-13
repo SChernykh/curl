@@ -39,11 +39,11 @@ permissions: {}
 env:
   MAKEFLAGS: -j 5
   # handled in renovate.json
-  openssl-version: 3.4.0
+  openssl-version: 3.4.1
   # handled in renovate.json
   quictls-version: 3.3.0
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver registryUrl=https://github.com
-  gnutls-version: 3.8.8
+  gnutls-version: 3.8.9
   # renovate: datasource=github-tags depName=wolfSSL/wolfssl versioning=semver extractVersion=^v?(?<version>.+)-stable$ registryUrl=https://github.com
   wolfssl-version: 5.7.6
   # renovate: datasource=github-tags depName=ngtcp2/nghttp3 versioning=semver registryUrl=https://github.com
@@ -308,7 +308,7 @@ jobs:
           cache-name: cache-quictls-no-deprecated
         with:
           path: ~/quictls/build
-          key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.quictls-version }}
+          key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.quictls-version }}-quic1
           fail-on-cache-miss: true
 
       - name: 'cache gnutls'
