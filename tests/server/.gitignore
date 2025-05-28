@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: curl
 
-disabled
-getpart
+server_bundle.c
+servers
+buildinfo
+dnsd
 mqttd
 resolve
 rtspd
