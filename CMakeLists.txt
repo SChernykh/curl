@@ -377,8 +377,14 @@ if(WIN32)
   if(CURL_STATIC_CRT AND MSVC)
     if(MSVC_VERSION GREATER_EQUAL 1900 OR BUILD_STATIC_CURL OR NOT BUILD_CURL_EXE)
       set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-      set_property(DIRECTORY APPEND PROPERTY COMPILE_OPTIONS "$<$<CONFIG:Release>:-MT>")
-      set_property(DIRECTORY APPEND PROPERTY COMPILE_OPTIONS "$<$<CONFIG:Debug>:-MTd>")
+
+      set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /W0 /Zi /Od /Ob0 /MP /MTd")
+      set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /W0 /O2 /Ob2 /Oi /Ot /Oy /MP /MT /GL /GS /guard:cf")
+      set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /W0 /Ob1 /Ot /Zi /MP /MT")
+
+      if (DEV_WITH_ASAN)
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /fsanitize=address")
+      endif()
     else()
       message(WARNING "Static CRT requires UCRT, static libcurl or no curl executable.")
     endif()
@@ -558,34 +564,34 @@ endif()
 
 option(CURL_LINT "Run lint checks while building" OFF)
 
-find_package(Perl)
+#find_package(Perl)
 
-if(PERL_EXECUTABLE)
-  add_custom_target(curl-ca-bundle
-    COMMENT "Generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl" -b -l -u "lib/ca-bundle.crt"
-    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl"
-  )
-  add_custom_target(curl-ca-firefox
-    COMMENT "Generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh" "lib/ca-bundle.crt"
-    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh"
-  )
-  add_custom_target(curl-lint
-    COMMENT "Running lint checks" VERBATIM USES_TERMINAL
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/badwords-all"
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/checksrc-all.pl"
-    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/spacecheck.pl"
-    DEPENDS
-      "${PROJECT_SOURCE_DIR}/scripts/badwords-all" "${PROJECT_SOURCE_DIR}/scripts/badwords"
-      "${PROJECT_SOURCE_DIR}/scripts/checksrc-all.pl" "${PROJECT_SOURCE_DIR}/scripts/checksrc.pl"
-      "${PROJECT_SOURCE_DIR}/scripts/spacecheck.pl"
-  )
-  if(CURL_LINT)
-    set_target_properties(curl-lint PROPERTIES EXCLUDE_FROM_ALL FALSE)
-  endif()
-endif()
+#if(PERL_EXECUTABLE)
+#  add_custom_target(curl-ca-bundle
+#    COMMENT "Generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl" -b -l -u "lib/ca-bundle.crt"
+#    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/mk-ca-bundle.pl"
+#  )
+#  add_custom_target(curl-ca-firefox
+#    COMMENT "Generating a fresh ca-bundle.crt" VERBATIM USES_TERMINAL
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh" "lib/ca-bundle.crt"
+#    DEPENDS "${PROJECT_SOURCE_DIR}/scripts/firefox-db2pem.sh"
+#  )
+#  add_custom_target(curl-lint
+#    COMMENT "Running lint checks" VERBATIM USES_TERMINAL
+#    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/badwords-all"
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/checksrc-all.pl"
+#    COMMAND "${PERL_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/spacecheck.pl"
+#    DEPENDS
+#      "${PROJECT_SOURCE_DIR}/scripts/badwords-all" "${PROJECT_SOURCE_DIR}/scripts/badwords"
+#      "${PROJECT_SOURCE_DIR}/scripts/checksrc-all.pl" "${PROJECT_SOURCE_DIR}/scripts/checksrc.pl"
+#      "${PROJECT_SOURCE_DIR}/scripts/spacecheck.pl"
+#  )
+#  if(CURL_LINT)
+#    set_target_properties(curl-lint PROPERTIES EXCLUDE_FROM_ALL FALSE)
+#  endif()
+#endif()
 
 option(BUILD_LIBCURL_DOCS "Build libcurl man pages" ON)
 option(BUILD_MISC_DOCS "Build misc man pages (e.g. curl-config and mk-ca-bundle)" ON)
@@ -877,6 +883,15 @@ if(CURL_USE_OPENSSL)
   else()
     set(_openssl "OpenSSL")
   endif()
+endif()
+
+if(P2POOL_BORINGSSL)
+  set(_ssl_enabled ON)
+  set(USE_OPENSSL ON)
+  set(HAVE_BORINGSSL TRUE)
+  set(HAVE_DES_ECB_ENCRYPT TRUE)
+  set(HAVE_SSL_SET0_WBIO TRUE)
+  include_directories("${OPENSSL_INCLUDE_DIR}")
 endif()
 
 if(CURL_USE_MBEDTLS)
@@ -1830,7 +1845,7 @@ if(WIN32)
   list(APPEND CURL_LIBS "bcrypt")  # for BCryptGenRandom()
 
   # We use crypto functions that are not available for UWP apps
-  if(NOT WINDOWS_STORE)
+  if(NOT WINDOWS_STORE AND NOT CURL_DISABLE_NTLM)
     set(USE_WIN32_CRYPTO ON)
   endif()
 
